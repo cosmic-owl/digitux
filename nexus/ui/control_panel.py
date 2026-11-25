@@ -29,6 +29,8 @@ class ControlPanel(QTabWidget):
         self._build_expression()
         self._build_lfo()
         self._build_wah()
+        self.expr_slot.currentIndexChanged.connect(self._populate_expr_params)
+        self.lfo_slot.currentIndexChanged.connect(self._populate_lfo_params)
 
     # ---------------------------------------------------------- stompbox
     def _build_stomp(self):
@@ -160,22 +162,24 @@ class ControlPanel(QTabWidget):
     def _build_wah(self):
         w = QWidget()
         lay = QVBoxLayout(w)
-        self.wah_level = QSpinBox(); self.wah_level.setRange(0, 12); self.wah_level.setValue(6)
-        self.wah_level.valueChanged.connect(self._on_wah_level)
+        self.wah_level_spin = QSpinBox(); self.wah_level_spin.setRange(0, 12); self.wah_level_spin.setValue(6)
+        self.wah_level_spin.valueChanged.connect(self._on_wah_level)
         lay.addWidget(QLabel("WAH LEVL"))
-        lay.addWidget(self.wah_level)
-        self.pedal = QSpinBox(); self.pedal.setRange(0, 99); self.pedal.setValue(0)
-        self.pedal.valueChanged.connect(self._on_pedal)
+        lay.addWidget(self.wah_level_spin)
+        self.pedal_spin = QSpinBox(); self.pedal_spin.setRange(0, 99); self.pedal_spin.setValue(0)
+        self.pedal_spin.valueChanged.connect(self._on_pedal)
         lay.addWidget(QLabel("PEDAL"))
-        lay.addWidget(self.pedal)
+        lay.addWidget(self.pedal_spin)
         lay.addStretch()
         self.addTab(w, "Wah Settings")
 
     def _on_wah_level(self, v):
         self.wah_level_value = v
+        self.wah_level.emit(v)
 
     def _on_pedal(self, v):
         self.pedal_value = v
+        self.pedal.emit(v)
 
     # ----------------------------------------------------------- helpers
     def _combo_style(self):
@@ -194,8 +198,6 @@ class ControlPanel(QTabWidget):
             for label, data in items:
                 combo.addItem(label, data)
             combo.blockSignals(False)
-        self.expr_slot.currentIndexChanged.connect(self._populate_expr_params)
-        self.lfo_slot.currentIndexChanged.connect(self._populate_lfo_params)
         self._populate_expr_params()
         self._populate_lfo_params()
 

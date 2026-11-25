@@ -83,6 +83,10 @@ class Transport:
         """Register a callback invoked when the read thread dies (serial error)."""
         self._error_handler = handler
 
+    @property
+    def is_connected(self) -> bool:
+        return self._running and self._port is not None and self._port.is_open
+
     @staticmethod
     def find_port() -> Optional[str]:
         """Return the serial port path for the RP360XP, or None if not found."""
@@ -133,11 +137,13 @@ class Transport:
                 seq = self._next_seq()
                 self._dack_pending[seq] = event
             pkt = self._build_small(CHAN_CMD, seq, chunk)
-            self._write(pkt)
-            if not event.wait(timeout=5.0):
+            try:
+                self._write(pkt)
+                if not event.wait(timeout=5.0):
+                    raise TransportError(f"No DACK received for SEQ={seq}")
+            finally:
                 with self._dack_lock:
                     self._dack_pending.pop(seq, None)
-                log.warning("No DACK received for SEQ=%d, continuing", seq)
             done += 1
             if on_progress:
                 on_progress(done, total)
@@ -169,6 +175,7 @@ class Transport:
                     self._buf.extend(data)
                     self._parse_buffer()
             except serial.SerialException as exc:
+                self._running = False
                 log.error("Serial read error: %s", exc)
                 if self._error_handler:
                     self._error_handler(exc)

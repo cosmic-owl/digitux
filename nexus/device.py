@@ -59,15 +59,19 @@ class Device:
     def connect(self) -> None:
         """Connect to the RP360XP and open a Nexus-compatible session."""
         self._transport.connect(self._port)
-        self._handshake()
+        try:
+            self._handshake()
+        except Exception:
+            self._transport.disconnect()
+            raise
 
     def disconnect(self) -> None:
         """Close the session and disconnect."""
         try:
-            self._protocol.send_command("sbs", value=0)
-        except Exception:
-            pass
-        self._transport.disconnect()
+            if self._transport.is_connected:
+                self._protocol.send_command("sbs", value=0)
+        finally:
+            self._transport.disconnect()
 
     def _handshake(self) -> None:
         """Replicate the Nexus startup sequence."""

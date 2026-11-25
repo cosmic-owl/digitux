@@ -76,15 +76,13 @@ class Protocol:
             with self._pending_lock:
                 self._pending[host_id] = pending
 
-            self._transport.send(payload, on_progress=on_progress)
-
-            if not pending.event.wait(timeout):
+            try:
+                self._transport.send(payload, on_progress=on_progress)
+                if not pending.event.wait(timeout):
+                    raise TimeoutError(f"[{cmd}] id={host_id} timed out after {timeout}s")
+            finally:
                 with self._pending_lock:
                     self._pending.pop(host_id, None)
-                raise TimeoutError(f"[{cmd}] id={host_id} timed out after {timeout}s")
-
-            with self._pending_lock:
-                self._pending.pop(host_id, None)
 
             if pending.error:
                 raise pending.error

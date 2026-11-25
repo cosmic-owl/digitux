@@ -30,6 +30,11 @@ pocos colores planos con contorno.
 - Panel de control: Stompbox, Expression Link, LFO Link, Wah Settings.
 - Preset Level, menú (Backup/Restore/Import/Export/Store New/Quick Store/Copy).
 - Pestañas User / Factory / Library (99 presets).
+- Sincronización en vivo: los cambios notificados por el RP360 actualizan los
+  controles sin reenviarlos al dispositivo. Una lectura de reconciliación cada
+  cinco segundos recupera cambios que no hayan llegado como notificación;
+  las lecturas y escrituras se serializan en el protocolo. Los cambios de
+  parámetros ocurridos durante una lectura se conservan al aplicar el resultado.
 
 ## Instalación
 
