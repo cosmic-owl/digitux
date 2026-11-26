@@ -28,9 +28,9 @@ proyecto y hacer posible este fork.
 - Configurar asignaciones de stomp, expresión y LFO.
 - Copiar un preset User guardado al portapapeles interno. La acción de pegar
   aún no está implementada.
-- Restablecer una posición User previa confirmación. Esto la **sobrescribe**
+- Restablecer un preset de usuario con confirmación previa. Esto la **sobrescribe**
   con un preset predeterminado con nombre, amplificador y gabinete; la
-  posición no queda vacía.
+  posición no queda vacía. Úsalo para borrar un preset de usuario y comenzar desde cero.
 - Sincronizar los cambios compatibles de parámetros y presets con el pedal
   conectado. Las notificaciones actualizan la interfaz y una lectura de
   reconciliación cada cinco segundos recupera cambios no recibidos. Los
