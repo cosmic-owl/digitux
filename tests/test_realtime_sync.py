@@ -9,10 +9,11 @@ from unittest.mock import Mock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWidgets import QApplication, QPushButton, QStyle, QStyleOptionComboBox
+from PyQt5.QtCore import Qt
 from PyQt5.QtTest import QTest
 
-from nexus.model import Preset
+from nexus.model import FxSlot, Preset
 from nexus.protocol import Protocol
 from nexus.runtime import data_path
 from nexus.transport import CHAN_DATA, Packet, SEND_CHUNK, Transport, TransportError
@@ -42,6 +43,81 @@ class SyncUITest(unittest.TestCase):
     def tearDown(self):
         self.window.close()
         self.app.processEvents()
+
+    def test_vertical_control_navigation_preserves_state_without_device_writes(self):
+        panel = self.window.control_panel
+        panel.tempo.bpm.setValue(95)
+        self.device.reset_mock()
+        titles = ["Stompbox", "Expression Link", "LFO Link", "Wah Settings", "Tempo"]
+        for index, title in enumerate(titles):
+            button = panel.nav_buttons.button(index)
+            button.click()
+            self.assertEqual(panel.pages.currentIndex(), index)
+            self.assertEqual(panel.heading.text(), title)
+            self.assertTrue(button.isChecked())
+        self.assertEqual(panel.tempo.bpm.value(), 95)
+        panel.nav_buttons.button(0).click()
+        panel.nav_buttons.button(4).click()
+        self.assertEqual(panel.tempo.bpm.value(), 95)
+        self.device.set_param.assert_not_called()
+        self.device.set_ctrl_field.assert_not_called()
+        self.device.assign_lfo.assert_not_called()
+
+    def test_vertical_navigation_supports_keyboard(self):
+        panel = self.window.control_panel
+        self.window.show()
+        self.app.processEvents()
+        self.assertGreater(panel.navigation.x(), panel.pages.x())
+        self.assertLess(panel.navigation.width(), 60)
+        for button in panel.nav_buttons.buttons():
+            self.assertGreaterEqual(button.height(),
+                                    button.fontMetrics().horizontalAdvance(button.text()) + 10)
+        for index in range(panel.pages.count()):
+            page = panel.pages.widget(index)
+            self.assertGreaterEqual(panel.pages.width(), page.minimumSizeHint().width())
+        QTest.mouseClick(panel.nav_buttons.button(4), Qt.LeftButton)
+        self.assertEqual(panel.pages.currentIndex(), 4)
+        self.assertEqual(panel.heading.text(), "Tempo")
+        QTest.mouseClick(panel.nav_buttons.button(0), Qt.LeftButton)
+        panel.nav_buttons.button(0).setFocus()
+        QTest.keyClick(panel.nav_buttons.button(0), Qt.Key_Down)
+        self.assertEqual(panel.pages.currentIndex(), 1)
+        self.assertTrue(panel.nav_buttons.button(1).isChecked())
+
+    def test_narrow_panel_fits_labels_and_stacks_controls(self):
+        panel = self.window.control_panel
+        panel.set_effect_slots({9: FxSlot(9, "mod.DYNOCOMP", {"LOOSETIGHT": 0})})
+        self.window.show()
+        panel.nav_buttons.button(2).click()
+        self.app.processEvents()
+        self.assertLess(panel.width(), 344)
+        controls = [panel.lfo_min, panel.lfo_max, panel.lfo_speed, panel.lfo_wave]
+        for first, second in zip(controls, controls[1:]):
+            self.assertLess(first.geometry().bottom(), second.geometry().top())
+        for combo in (panel.lfo_slot, panel.lfo_param, panel.lfo_wave):
+            option = QStyleOptionComboBox()
+            combo.initStyleOption(option)
+            field = combo.style().subControlRect(
+                QStyle.CC_ComboBox, option, QStyle.SC_ComboBoxEditField, combo)
+            self.assertLessEqual(combo.fontMetrics().horizontalAdvance(combo.currentText()),
+                                 field.width())
+        panel.nav_buttons.button(4).click()
+        self.app.processEvents()
+        self.assertLess(panel.tempo.bpm.geometry().bottom(), panel.tempo.tap.geometry().top())
+
+    def test_stacked_lfo_controls_keep_assignment_values(self):
+        panel = self.window.control_panel
+        panel.nav_buttons.button(2).click()
+        panel.lfo_slot.setCurrentIndex(panel.lfo_slot.findData(2))
+        panel.lfo_param.setCurrentText("DRIVE")
+        panel.lfo_min.setValue(10)
+        panel.lfo_max.setValue(80)
+        panel.lfo_speed.setValue(138)
+        panel.lfo_wave.setCurrentText("SQUARE")
+        with patch.object(self.window, "_reload"):
+            assign = panel.pages.currentWidget().findChild(QPushButton)
+            assign.click()
+        self.device.assign_lfo.assert_called_once_with(2, "DRIVE", 10, 80, 138, 2, flat=False)
 
     def test_notifications_update_controls_without_device_writes_or_rebuilds(self):
         w = self.window
@@ -150,6 +226,18 @@ class SyncUITest(unittest.TestCase):
         self.device.get_active_preset.return_value = fixture_preset()
         w.amp_block.cab_combo.setCurrentIndex(5)
         self.device.set_param.assert_called_once_with(3, "CABINET", 5)
+
+    def test_cabinet_selector_is_aligned_above_image(self):
+        self.window.show()
+        self.app.processEvents()
+        block = self.window.amp_block
+        selector = block.cab_combo.geometry()
+        image = block.cab_lbl.geometry()
+        self.assertEqual(selector.left(), image.left())
+        self.assertEqual(selector.width(), image.width())
+        self.assertLess(selector.bottom(), image.top())
+        self.assertLess(image.bottom(), block.height())
+        self.device.set_param.assert_not_called()
 
     def test_disconnect_stops_polling(self):
         w = self.window

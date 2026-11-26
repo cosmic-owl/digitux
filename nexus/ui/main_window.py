@@ -16,6 +16,7 @@ from ..effects_db import EffectsDB
 from .pedalboard_view import PedalboardView, reordered_slots
 from .amp_cab_block import AmpCabBlock
 from .control_panel import ControlPanel
+from .tempo_panel import delay_ms, lfo_speed
 from ..runtime import img_path, data_path
 
 log = logging.getLogger(__name__)
@@ -231,10 +232,11 @@ class MainWindow(QMainWindow):
 
         # Right: control assignment panel
         self.control_panel = ControlPanel(self.db)
-        self.control_panel.setFixedWidth(290)
+        self.control_panel.setFixedWidth(240)
         self.control_panel.stomp_assigned.connect(self._assign_stomp)
         self.control_panel.expression_assigned.connect(self._assign_expression)
         self.control_panel.lfo_assigned.connect(self._assign_lfo)
+        self.control_panel.tempo.changed.connect(self._sync_tempo)
         self.control_panel.wah_level.connect(
             lambda value: self._set_wah_param("WAH LEVL", value))
         self.control_panel.pedal.connect(
@@ -454,6 +456,11 @@ class MainWindow(QMainWindow):
         self.amp_block.set_amp_slot(amp_slot)
         self.pedalboard.rebuild(p.slots, self.db)
         self.control_panel.set_effect_slots(p.slots)
+        lfo = p.ctrls.get("lfo1")
+        if lfo is not None and lfo.speed is not None:
+            blocked = self.control_panel.lfo_speed.blockSignals(True)
+            self.control_panel.lfo_speed.setValue(lfo.speed)
+            self.control_panel.lfo_speed.blockSignals(blocked)
         wah = next((s for s in p.slots.values() if s.category == "wah"), None)
         if wah:
             for name in ("WAH LEVL", "PEDAL"):
@@ -649,6 +656,9 @@ class MainWindow(QMainWindow):
 
     def _assign_lfo(self, slot, param, minv, maxv, speed, wave):
         try:
+            beats = self.control_panel.tempo.lfo.currentData()
+            if beats is not None:
+                speed = lfo_speed(self.control_panel.tempo.bpm.value(), beats)
             s = self.preset.slots.get(slot)
             flat = s is not None and not getattr(s, "_use_fx_subdict", True)
             self.dev.assign_lfo(slot, param, minv, maxv, speed, wave, flat=flat)
@@ -656,6 +666,60 @@ class MainWindow(QMainWindow):
             self._reload()
         except Exception as e:
             self.status.showMessage(f"Error lfo: {e}", 5000)
+
+    def _sync_tempo(self):
+        tempo = self.control_panel.tempo
+        preset = getattr(self, "preset", None)
+        if tempo.delay.currentData() is None and tempo.lfo.currentData() is None:
+            return
+        if not self._connected or preset is None:
+            self.status.showMessage("Tempo: conecta el pedal y carga un preset", 5000)
+            return
+        errors = []
+        beats = tempo.delay.currentData()
+        if beats is not None:
+            delay = next((s for s in preset.slots.values() if s.category == "dly"), None)
+            if delay is None or "TIME" not in delay.params:
+                errors.append("Delay sin parámetro TIME compatible")
+            else:
+                value = delay_ms(tempo.bpm.value(), beats)
+                try:
+                    low, high = self.db.param_range(delay.model.split(".", 1)[-1], "TIME")
+                    if not low <= value <= high:
+                        errors.append(f"Delay: {value} ms fuera del rango {low}–{high} ms")
+                    elif value != delay.params["TIME"]:
+                        self._set_param(delay.slot, "TIME", value)
+                except KeyError:
+                    errors.append("Rango de delay desconocido")
+        beats = tempo.lfo.currentData()
+        if beats is not None:
+            try:
+                speed = lfo_speed(tempo.bpm.value(), beats)
+            except ValueError as exc:
+                errors.append(str(exc))
+            else:
+                ctrl = preset.ctrls.get("lfo1")
+                if ctrl is None or not ctrl.lnk:
+                    errors.append("LFO sin asignar")
+                elif ctrl.speed != speed:
+                    try:
+                        if hasattr(self, "worker"):
+                            self.worker.invalidate()
+                        self.dev.set_ctrl_field("lfo1", "SPEED", speed)
+                        if hasattr(self, "worker"):
+                            self.worker.invalidate()
+                        ctrl.speed = speed
+                        blocked = self.control_panel.lfo_speed.blockSignals(True)
+                        self.control_panel.lfo_speed.setValue(speed)
+                        self.control_panel.lfo_speed.blockSignals(blocked)
+                    except Exception as exc:
+                        if hasattr(self, "worker"):
+                            self.worker.invalidate()
+                        log.exception("Could not synchronize LFO speed")
+                        errors.append(f"Error LFO: {exc}")
+                        self._sync_timer.start()
+        if errors:
+            self.status.showMessage("; ".join(errors), 6000)
 
     # ------------------------------------------------------ file operations
     def _backup(self):

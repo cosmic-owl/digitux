@@ -2,7 +2,7 @@
 import math
 
 from PyQt5.QtWidgets import QWidget
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import QPointF, QRectF, Qt, pyqtSignal
 from PyQt5.QtGui import QPainter, QColor, QFont
 
 
@@ -41,32 +41,33 @@ class Knob(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         w = self.width()
-        label_h = 18
+        label_h = 20
         knob_area = self.height() - label_h
-        cx = w // 2
-        cy = knob_area // 2
-        r = knob_area // 2 - 3
+        cx = w / 2
+        cy = knob_area / 2
+        r = min(w, knob_area) / 2 - 3
         # body
         p.setBrush(QColor(75, 75, 75))
         p.setPen(QColor(20, 20, 20))
-        p.drawEllipse(cx - r, cy - r, cx + r, cy + r)
+        p.drawEllipse(QRectF(cx - r, cy - r, 2 * r, 2 * r))
         # tick marks
         p.setPen(QColor(150, 150, 150))
         for i in range(0, 101, 10):
-            a = math.radians(-135 + (i / 100) * 270)
+            a = math.radians(-240 + (i / 100) * 300)
             x1 = cx + (r - 2) * math.cos(a)
             y1 = cy + (r - 2) * math.sin(a)
             x2 = cx + (r - 5) * math.cos(a)
             y2 = cy + (r - 5) * math.sin(a)
-            p.drawLine(int(x1), int(y1), int(x2), int(y2))
+            p.drawLine(QPointF(x1, y1), QPointF(x2, y2))
         # pointer
         ratio = (self._value - self.min_val) / (self.max_val - self.min_val)
-        a = math.radians(-135 + ratio * 270)
+        a = math.radians(-240 + ratio * 300)
         p.setPen(QColor(255, 176, 0))
         pen = p.pen()
         pen.setWidth(2)
         p.setPen(pen)
-        p.drawLine(cx, cy, int(cx + (r - 7) * math.cos(a)), int(cy + (r - 7) * math.sin(a)))
+        p.drawLine(QPointF(cx, cy),
+                   QPointF(cx + (r - 7) * math.cos(a), cy + (r - 7) * math.sin(a)))
         # label
         p.setPen(QColor(225, 225, 225))
         p.setFont(QFont("Sans", 8, QFont.Bold))

@@ -22,7 +22,7 @@ MIDI/SysEx; el RP360 usa un protocolo serie JSON).
 - Pedalboard con las 10 posiciones de cadena y drag-and-drop para reordenar.
 - 140 efectos + 27 cabinets con selector gráfico contextual.
 - Amplificador con knobs, cabinet e interruptor ON/Bypass.
-- Panel de control: Stompbox, Expression Link, LFO Link y Wah Settings.
+- Panel de control: Stompbox, Expression Link, LFO Link, Wah Settings y Tempo.
 - Preset Level y menú Backup/Restore/Import/Export de presets (.rp360p).
 - 99 presets de fábrica como biblioteca.
 - Gráficos generados por código (estilo cartoon), sin material propietario.

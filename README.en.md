@@ -26,6 +26,14 @@ project and making this fork possible.
 - Browse User, Factory, and bundled Library presets; import and export presets;
   and back up or restore user presets as JSON.
 - Configure stomp, expression, and LFO assignments.
+- Use the Tempo tab to tap or enter a session BPM and optionally apply note
+  subdivisions to delay time and an assigned LFO. Both targets default to Off;
+  changing the tempo or a subdivision updates enabled targets in the current
+  edit buffer. Store the preset to keep those parameter changes.
+  The BPM and subdivision choices are not saved or read from the pedal.
+  Delay models without a TIME parameter and values outside the model's range
+  cannot be synchronized. LFO speed conversion is approximate and has not
+  been verified on hardware; the pedal's own TAP DIV setting is unchanged.
 - Copy a saved User preset to the internal clipboard. The paste action is not
   implemented yet.
 - Reset a User slot after confirmation. This **overwrites** it with a named
@@ -76,8 +84,6 @@ These are goals, not promises or a release schedule.
   self-contained macOS `.dmg` for Apple Silicon and Intel.
 - Expose global settings and three-footswitch modes, output compensation
   (Amp/Mixer), and expression pedal calibration.
-- Add tap tempo, a BPM display, and synchronization with rhythmic delay and
-  LFO subdivisions.
 - Continue improving and validating bidirectional synchronization on hardware.
 
 ### Librarian workflows

@@ -1,15 +1,37 @@
-"""Control assignment panel — Stompbox / Expression / LFO / Wah (like Nexus)."""
+"""Control assignment and tempo panel."""
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton,
-    QTabWidget, QSpinBox, QDoubleSpinBox, QGroupBox, QCheckBox,
+    QStackedWidget, QButtonGroup, QSpinBox, QStyle, QStyleOptionButton,
+    QStylePainter,
 )
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QColor
+from PyQt5.QtCore import QRect, QSize, pyqtSignal
+from .tempo_panel import TempoPanel
 
 
-class ControlPanel(QTabWidget):
-    """Right-side tab widget for r: Stompbox Mode, Expression Link, LFO Link,
-    Wah Settings."""
+class _VerticalButton(QPushButton):
+    def sizeHint(self):
+        size = super().sizeHint()
+        return QSize(size.height(), size.width())
+
+    def minimumSizeHint(self):
+        return self.sizeHint()
+
+    def paintEvent(self, event):
+        option = QStyleOptionButton()
+        self.initStyleOption(option)
+        painter = QStylePainter(self)
+        label = option.text
+        option.text = ""
+        painter.drawControl(QStyle.CE_PushButton, option)
+        option.text = label
+        option.rect = QRect(0, 0, self.height(), self.width())
+        painter.translate(self.width(), 0)
+        painter.rotate(90)
+        painter.drawControl(QStyle.CE_PushButtonLabel, option)
+
+
+class ControlPanel(QWidget):
+    """Right-side controls with a vertical navigation rail."""
 
     stomp_assigned = pyqtSignal(str, int)          # ctrl, slot (or -1 to clear)
     expression_assigned = pyqtSignal(str, int, str, int, int)  # ctrl, slot, param, min, max
@@ -20,17 +42,64 @@ class ControlPanel(QTabWidget):
     def __init__(self, db, parent=None):
         super().__init__(parent)
         self.db = db
-        self.setStyleSheet(
-            "QTabWidget::pane{border:1px solid #333; background:#181818;}"
-            "QTabBar::tab{background:#222;color:#888;padding:6px 14px;}"
-            "QTabBar::tab:selected{background:#181818;color:#ffb000;}"
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        self.navigation = QWidget()
+        self.navigation.setFixedWidth(40)
+        self.navigation.setStyleSheet(
+            "QWidget{background:#202020;}"
+            "QPushButton{background:transparent;color:#aaa;border:0;"
+            "border-left:3px solid transparent;text-align:center;padding:6px 10px;}"
+            "QPushButton:hover{background:#292929;color:#eee;}"
+            "QPushButton:checked{background:#181818;color:#ffb000;"
+            "border-left:3px solid #ffb000;}"
+            "QPushButton:focus{border-bottom:1px solid #ffb000;}"
         )
+        self.nav_layout = QVBoxLayout(self.navigation)
+        self.nav_layout.setContentsMargins(0, 0, 0, 0)
+        self.nav_layout.setSpacing(0)
+        self.nav_buttons = QButtonGroup(self)
+        self.nav_buttons.setExclusive(True)
+        content = QWidget()
+        content.setStyleSheet("background:#181818;")
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        self.heading = QLabel()
+        self.heading.setStyleSheet(
+            "color:#ffb000;font-weight:bold;padding:10px 9px;"
+            "border-bottom:1px solid #333;"
+        )
+        content_layout.addWidget(self.heading)
+        self.pages = QStackedWidget()
+        content_layout.addWidget(self.pages, 1)
+        layout.addWidget(content, 1)
+        layout.addWidget(self.navigation)
         self._build_stomp()
         self._build_expression()
         self._build_lfo()
         self._build_wah()
+        self.tempo = TempoPanel()
+        self._add_page(self.tempo, "Tempo", "Tempo")
+        self.nav_layout.addStretch()
+        self.nav_buttons.button(0).setChecked(True)
+        self.heading.setText("Stompbox")
         self.expr_slot.currentIndexChanged.connect(self._populate_expr_params)
         self.lfo_slot.currentIndexChanged.connect(self._populate_lfo_params)
+
+    def _add_page(self, page, label, title):
+        index = self.pages.addWidget(page)
+        button = _VerticalButton(label)
+        button.setCheckable(True)
+        button.setToolTip(title)
+        button.setAccessibleName(title)
+        button.clicked.connect(lambda: self._select_page(index, title))
+        self.nav_buttons.addButton(button, index)
+        self.nav_layout.addWidget(button)
+
+    def _select_page(self, index, title):
+        self.pages.setCurrentIndex(index)
+        self.heading.setText(title)
 
     # ---------------------------------------------------------- stompbox
     def _build_stomp(self):
@@ -55,7 +124,7 @@ class ControlPanel(QTabWidget):
         clear.clicked.connect(self._clear_stomp)
         lay.addWidget(clear)
         lay.addStretch()
-        self.addTab(w, "Stompbox")
+        self._add_page(w, "Stompbox", "Stompbox")
 
     def _on_stomp(self):
         idx = self.stomp_slot.currentData()
@@ -90,17 +159,17 @@ class ControlPanel(QTabWidget):
 
         self.expr_min = QSpinBox(); self.expr_min.setRange(0, 99)
         self.expr_max = QSpinBox(); self.expr_max.setRange(0, 99); self.expr_max.setValue(99)
-        row = QHBoxLayout()
-        row.addWidget(QLabel("Min")); row.addWidget(self.expr_min)
-        row.addWidget(QLabel("Max")); row.addWidget(self.expr_max)
-        lay.addLayout(row)
+        lay.addWidget(QLabel("Min"))
+        lay.addWidget(self.expr_min)
+        lay.addWidget(QLabel("Max"))
+        lay.addWidget(self.expr_max)
 
         self.expr_slot.currentIndexChanged.connect(self._populate_params)
         assign = QPushButton("Asignar")
         assign.clicked.connect(self._assign_expression)
         lay.addWidget(assign)
         lay.addStretch()
-        self.addTab(w, "Expression")
+        self._add_page(w, "Expression", "Expression Link")
 
     def _populate_params(self):
         self.expr_param.clear()
@@ -129,25 +198,25 @@ class ControlPanel(QTabWidget):
 
         self.lfo_min = QSpinBox(); self.lfo_min.setRange(0, 99)
         self.lfo_max = QSpinBox(); self.lfo_max.setRange(0, 99); self.lfo_max.setValue(99)
-        row1 = QHBoxLayout()
-        row1.addWidget(QLabel("Min")); row1.addWidget(self.lfo_min)
-        row1.addWidget(QLabel("Max")); row1.addWidget(self.lfo_max)
-        lay.addLayout(row1)
+        lay.addWidget(QLabel("Min"))
+        lay.addWidget(self.lfo_min)
+        lay.addWidget(QLabel("Max"))
+        lay.addWidget(self.lfo_max)
 
         self.lfo_speed = QSpinBox(); self.lfo_speed.setRange(0, 185); self.lfo_speed.setValue(74)
         self.lfo_wave = QComboBox()
         self.lfo_wave.addItems(["TRIANGLE", "SINE", "SQUARE"])
-        row2 = QHBoxLayout()
-        row2.addWidget(QLabel("Speed")); row2.addWidget(self.lfo_speed)
-        row2.addWidget(QLabel("Wave")); row2.addWidget(self.lfo_wave)
-        lay.addLayout(row2)
+        lay.addWidget(QLabel("Speed"))
+        lay.addWidget(self.lfo_speed)
+        lay.addWidget(QLabel("Wave"))
+        lay.addWidget(self.lfo_wave)
 
         self.lfo_slot.currentIndexChanged.connect(lambda _: self._populate_params())
         assign = QPushButton("Asignar")
         assign.clicked.connect(self._assign_lfo)
         lay.addWidget(assign)
         lay.addStretch()
-        self.addTab(w, "LFO Link")
+        self._add_page(w, "LFO", "LFO Link")
 
     def _assign_lfo(self):
         slot = self.lfo_slot.currentData()
@@ -171,7 +240,7 @@ class ControlPanel(QTabWidget):
         lay.addWidget(QLabel("PEDAL"))
         lay.addWidget(self.pedal_spin)
         lay.addStretch()
-        self.addTab(w, "Wah Settings")
+        self._add_page(w, "Wah", "Wah Settings")
 
     def _on_wah_level(self, v):
         self.wah_level_value = v

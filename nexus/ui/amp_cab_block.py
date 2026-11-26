@@ -1,8 +1,4 @@
-"""Amp/Cabinet block — clean, legible layout.
-
-  [ AMP image (wide)          ]   [ LED / Bypass lever ]
-  [ GAIN BASS MID TREB LEVEL  ]   [ Cabinet image+combo ]
-"""
+"""Amp/Cabinet block — clean, legible layout."""
 from PyQt5.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QComboBox,
 )
@@ -199,28 +195,24 @@ class AmpCabBlock(QWidget):
         # ---- right: cabinet only ----
         right = QVBoxLayout()
         right.setSpacing(6)
-        right.setContentsMargins(0, 30, 20, 0)   # más a la derecha y abajo
+        right.setContentsMargins(0, 0, 20, 0)
 
-        # cabinet: imagen a la izquierda + selector a su derecha
-        cab_row = QHBoxLayout()
-        cab_row.setSpacing(8)
         self.cab_lbl = QLabel("Cabinet")
         self.cab_lbl.setFixedSize(CAB_DISP_W, CAB_DISP_H)
         self.cab_lbl.setAlignment(Qt.AlignCenter)
         self.cab_lbl.setStyleSheet(
             "background:#0f0f0f; border:1px solid #3a3a3a; border-radius:6px; color:#666; font-size:11px;"
         )
-        cab_row.addWidget(self.cab_lbl)
         self.cab_combo = QComboBox()
         self.cab_combo.addItems(self.db.cabinet_names())
-        self.cab_combo.setMinimumWidth(150)
+        self.cab_combo.setFixedWidth(CAB_DISP_W)
         self.cab_combo.setStyleSheet(
             "QComboBox{background:#222;color:#ddd;border:1px solid #444;border-radius:4px;padding:4px;}"
             "QComboBox::drop-down{border:none;}"
         )
         self.cab_combo.currentIndexChanged.connect(self._on_cab_combo)
-        cab_row.addWidget(self.cab_combo, alignment=Qt.AlignTop)
-        right.addLayout(cab_row)
+        right.addWidget(self.cab_combo)
+        right.addWidget(self.cab_lbl)
         right.addStretch()
         lay.addLayout(right, 0)
 

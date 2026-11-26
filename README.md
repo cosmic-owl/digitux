@@ -26,6 +26,14 @@ proyecto y hacer posible este fork.
 - Explorar los presets User, Factory y Library incluidos; importar y exportar
   presets; y respaldar o restaurar presets de usuario en JSON.
 - Configurar asignaciones de stomp, expresión y LFO.
+- En la pestaña Tempo se puede marcar o introducir un BPM de sesión y aplicar
+  subdivisiones al tiempo del delay y al LFO asignado. Ambos destinos comienzan
+  en Off; cambiar el tempo o una subdivisión actualiza los destinos activos en
+  el preset de edición. Guarda el preset para conservar esos parámetros.
+  El BPM y las subdivisiones no se guardan ni se leen del pedal. Los modelos de
+  delay sin parámetro TIME y los valores fuera de rango no se sincronizan. La
+  conversión de velocidad LFO es aproximada y no se ha verificado en hardware;
+  el ajuste TAP DIV del pedal no se modifica.
 - Copiar un preset User guardado al portapapeles interno. La acción de pegar
   aún no está implementada.
 - Restablecer un preset de usuario con confirmación previa. Esto la **sobrescribe**
@@ -80,8 +88,6 @@ Estos son objetivos, no promesas ni un calendario de lanzamientos.
   un `.dmg` autónomo para macOS en Apple Silicon e Intel.
 - Exponer los ajustes globales y los modos de tres footswitches, la compensación
   de salida (Amp/Mixer) y la calibración del pedal de expresión.
-- Añadir tap tempo, visualización de BPM y sincronización con subdivisiones
-  rítmicas de delay y LFO.
 - Seguir mejorando y validando la sincronización bidireccional con el hardware.
 
 ### Gestión de presets
