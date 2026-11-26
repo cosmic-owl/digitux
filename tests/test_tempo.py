@@ -7,6 +7,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt5.QtWidgets import QApplication
 
 from nexus.model import Ctrl
+from nexus.ui.i18n import translate
 from nexus.ui.main_window import MainWindow, Worker
 from nexus.ui.tempo_panel import TempoPanel, delay_ms, lfo_speed
 from test_realtime_sync import fixture_preset
@@ -58,7 +59,10 @@ class TempoTest(unittest.TestCase):
             panel.tap.click()
             panel.tap.click()
         self.assertEqual(panel.bpm.value(), 120)
-        self.assertIn("fuera del rango", panel.readout.text())
+        self.assertEqual(
+            panel.readout.text(),
+            translate("Tempo fuera del rango 20–300 BPM; vuelve a marcar"),
+        )
 
     def test_sync_writes_delay_and_assigned_lfo(self):
         w = self.window
@@ -84,16 +88,26 @@ class TempoTest(unittest.TestCase):
         w.control_panel.tempo.bpm.setValue(20)
         w.control_panel.tempo.delay.setCurrentIndex(1)
         self.device.set_param.assert_not_called()
-        self.assertIn("fuera del rango", w.status.currentMessage())
+        delay_value = delay_ms(20, w.control_panel.tempo.delay.currentData())
+        low, high = w.db.param_range("ECHOPLEX", "TIME")
+        self.assertIn(
+            translate(
+                "Delay: {value} ms fuera del rango {low}–{high} ms"
+            ).format(value=delay_value, low=low, high=high),
+            w.status.currentMessage(),
+        )
         w.preset.slots[8].model = "dly.DM DELAY"
         w.preset.slots[8].params.pop("TIME")
         w.control_panel.tempo.bpm.setValue(100)
-        self.assertIn("sin parámetro TIME", w.status.currentMessage())
+        self.assertIn(
+            translate("Delay sin parámetro TIME compatible"),
+            w.status.currentMessage(),
+        )
         self.device.set_param.assert_not_called()
         w.preset.ctrls["lfo1"] = Ctrl()
         w.control_panel.tempo.delay.setCurrentIndex(0)
         w.control_panel.tempo.lfo.setCurrentIndex(2)
-        self.assertIn("LFO sin asignar", w.status.currentMessage())
+        self.assertIn(translate("LFO sin asignar"), w.status.currentMessage())
         self.device.set_ctrl_field.assert_not_called()
 
     def test_off_does_not_write_and_snapshots_do_not_apply_tempo(self):

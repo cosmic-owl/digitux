@@ -50,6 +50,8 @@ project and making this fork possible.
   Notifications update the UI, while a five-second reconciliation read catches
   missed changes. Serial commands are serialized and newer parameter changes
   are preserved when a reconciliation read completes.
+- The interface follows the system language automatically: Spanish, English,
+  French, German, Italian, or Japanese. Other languages use the original UI text.
 
 The application was originally developed for Linux. Hardware and audio
 behavior can vary by system and device; real-time synchronization does not

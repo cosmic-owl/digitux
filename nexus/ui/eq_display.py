@@ -5,6 +5,7 @@ import math
 from PyQt5.QtCore import QPointF, QRect, QRectF, Qt
 from PyQt5.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
 from PyQt5.QtWidgets import QWidget
+from .i18n import translate
 
 
 # Endpoints and the intermediate points were read from an RP360XP. Values
@@ -51,11 +52,11 @@ class EqDisplay(QWidget):
         super().__init__(parent)
         self.slot = None
         self.setFixedSize(164, 125)
-        self.setToolTip(
+        self.setToolTip(translate(
             "EQ effect only. Frequency mappings are interpolated and filter "
             "shapes are illustrative; this is not a measured response. "
             "The vertical scale adjusts to the curve."
-        )
+        ))
 
     def set_slot(self, slot):
         self.slot = slot
@@ -70,19 +71,20 @@ class EqDisplay(QWidget):
         p.setPen(QColor("#e8eef5"))
         p.setFont(QFont("Sans", 8, QFont.Bold))
         p.drawText(QRect(10, 7, 144, 18),
-                   Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, "EQ ESTIMATE")
+                   Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                   translate("EQ ESTIMATE"))
         p.setPen(QColor("#546980"))
         p.drawLine(10, 26, 154, 26)
 
         bands = eq_bands(self.slot) if self.slot is not None and self.slot.enable is True else None
         if self.slot is None:
-            message = "NO EQ"
+            message = translate("NO EQ")
         elif self.slot.enable is False:
-            message = "EQ BYPASSED"
+            message = translate("EQ BYPASSED")
         elif self.slot.enable is not True:
-            message = "EQ UNAVAILABLE"
+            message = translate("EQ UNAVAILABLE")
         else:
-            message = "EQ UNAVAILABLE" if bands is None else None
+            message = translate("EQ UNAVAILABLE") if bands is None else None
         if bands is None:
             p.setPen(QColor("#b9c9dc"))
             p.drawText(QRect(8, 35, 148, 75), Qt.AlignmentFlag.AlignCenter, message)
@@ -99,7 +101,8 @@ class EqDisplay(QWidget):
         p.drawText(QRect(2, 30, 12, 14), Qt.AlignmentFlag.AlignCenter, "+")
         p.drawText(QRect(2, 92, 12, 14), Qt.AlignmentFlag.AlignCenter, "-")
         for x, text in ((24, "LOW"), (84, "MID"), (140, "HIGH")):
-            p.drawText(QRect(x - 22, 104, 44, 16), Qt.AlignmentFlag.AlignCenter, text)
+            p.drawText(QRect(x - 22, 104, 44, 16), Qt.AlignmentFlag.AlignCenter,
+                       translate(text))
 
         samples = []
         for x in range(left, right + 1):

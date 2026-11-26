@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QComboBox,
     QDoubleSpinBox,
 )
+from .i18n import translate
 
 
 SUBDIVISIONS = (
@@ -29,7 +30,7 @@ def lfo_speed(bpm, beats):
     """Approximate the device's encoded speed using its documented anchor points."""
     hz = bpm / (60 * beats)
     if not 0.05 <= hz <= 10:
-        raise ValueError(f"LFO: {hz:.2f} Hz fuera del rango 0.05–10 Hz")
+        raise ValueError(translate("LFO: {hz:.2f} Hz fuera del rango 0.05–10 Hz").format(hz=hz))
     if hz <= 1:
         return round((hz - 0.05) * 100)
     return round(95 + (hz - 1) * 10)
@@ -47,20 +48,20 @@ class TempoPanel(QWidget):
         self.bpm.setDecimals(1)
         self.bpm.setValue(120)
         self.bpm.setSuffix(" BPM")
-        self.bpm.setToolTip("Tempo de esta sesión; no se lee del pedal")
-        self.tap = QPushButton("Tap")
-        self.tap.setToolTip("Pulsa al ritmo; una pausa de 3 segundos reinicia la medición")
+        self.bpm.setToolTip(translate("Tempo de esta sesión; no se lee del pedal"))
+        self.tap = QPushButton(translate("Tap"))
+        self.tap.setToolTip(translate("Pulsa al ritmo; una pausa de 3 segundos reinicia la medición"))
         self.tap.clicked.connect(self._tap)
         lay.addWidget(self.bpm)
         lay.addWidget(self.tap)
         self.delay = self._subdivision(lay, "Delay")
         self.lfo = self._subdivision(lay, "LFO")
-        self.lfo.setToolTip("La conversión a velocidad LFO es aproximada")
+        self.lfo.setToolTip(translate("La conversión a velocidad LFO es aproximada"))
         self.readout = QLabel()
         self.readout.setWordWrap(True)
         lay.addWidget(self.readout)
-        info = QLabel("Off conserva los valores del preset. "
-                      "La sincronización se aplica al cambiar el tempo.")
+        info = QLabel(translate("Off conserva los valores del preset. "
+                                "La sincronización se aplica al cambiar el tempo."))
         info.setWordWrap(True)
         lay.addWidget(info)
         lay.addStretch()
@@ -70,10 +71,10 @@ class TempoPanel(QWidget):
         self._display()
 
     def _subdivision(self, layout, label):
-        layout.addWidget(QLabel(label))
+        layout.addWidget(QLabel(translate(label)))
         combo = QComboBox()
         for name, beats in SUBDIVISIONS:
-            combo.addItem(name, beats)
+            combo.addItem(translate(name), beats)
         layout.addWidget(combo)
         return combo
 
@@ -85,10 +86,11 @@ class TempoPanel(QWidget):
         bpm = self.bpm.value()
         parts = []
         if self.delay.currentData() is not None:
-            parts.append(f"Delay: {delay_ms(bpm, self.delay.currentData())} ms")
+            parts.append(translate("Delay: {value} ms").format(
+                value=delay_ms(bpm, self.delay.currentData())))
         if self.lfo.currentData() is not None:
             hz = bpm / (60 * self.lfo.currentData())
-            parts.append(f"LFO: ~{hz:.2f} Hz")
+            parts.append(translate("LFO: ~{hz:.2f} Hz").format(hz=hz))
         self.readout.setText("  |  ".join(parts))
 
     def _update(self):
@@ -106,7 +108,7 @@ class TempoPanel(QWidget):
         if not self.bpm.minimum() <= bpm <= self.bpm.maximum():
             self._taps.clear()
             self._taps.append(now)
-            self.readout.setText("Tempo fuera del rango 20–300 BPM; vuelve a marcar")
+            self.readout.setText(translate("Tempo fuera del rango 20–300 BPM; vuelve a marcar"))
             return
         blocked = self.bpm.blockSignals(True)
         self.bpm.setValue(bpm)

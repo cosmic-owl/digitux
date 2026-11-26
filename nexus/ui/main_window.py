@@ -17,6 +17,7 @@ from .pedalboard_view import PedalboardView, reordered_slots
 from .amp_cab_block import AmpCabBlock
 from .control_panel import ControlPanel
 from .tempo_panel import delay_ms, lfo_speed
+from .i18n import translate
 from ..runtime import img_path, data_path
 
 log = logging.getLogger(__name__)
@@ -172,7 +173,7 @@ class Worker(QObject):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("DigiTux — RP360/XP Editor")
+        self.setWindowTitle(translate("DigiTux — RP360/XP Editor"))
         self.resize(1360, 820)
         self.db = EffectsDB()
         self.dev = Device()
@@ -245,7 +246,7 @@ class MainWindow(QMainWindow):
 
         self.status = QStatusBar()
         self.setStatusBar(self.status)
-        self.status.showMessage("Conectando...")
+        self.status.showMessage(translate("Conectando..."))
         self._build_menubar()
 
     def _build_title_bar(self):
@@ -274,7 +275,7 @@ class MainWindow(QMainWindow):
 
         # Preset Level
         from PyQt5.QtWidgets import QSlider
-        lvl_lbl = QLabel("Level")
+        lvl_lbl = QLabel(translate("Level"))
         lvl_lbl.setStyleSheet("color:#bbb; font-size:12px;")
         lay.addWidget(lvl_lbl)
         self.level_slider = QSlider(Qt.Orientation.Horizontal)
@@ -291,9 +292,9 @@ class MainWindow(QMainWindow):
         lay.addWidget(self.level_value)
 
         for text, slot, kind in [
-            ("Guardar", self._store, "save"),
-            ("Recargar", self._reload, "reload"),
-            ("+ Pedal", self._add_effect, "add"),
+            (translate("Guardar"), self._store, "save"),
+            (translate("Recargar"), self._reload, "reload"),
+            (translate("+ Pedal"), self._add_effect, "add"),
         ]:
             b = QPushButton(text)
             b.setFixedHeight(30)
@@ -315,12 +316,12 @@ class MainWindow(QMainWindow):
         lay.setContentsMargins(8, 8, 8, 8)
         lay.setSpacing(8)
 
-        title = QLabel("MIS TONOS")
+        title = QLabel(translate("MIS TONOS"))
         title.setStyleSheet("color:#ffb000; font-weight:bold; font-size:13px;")
         lay.addWidget(title)
 
         self.search = QLineEdit()
-        self.search.setPlaceholderText("Buscar...")
+        self.search.setPlaceholderText(translate("Buscar..."))
         self.search.setStyleSheet(
             "QLineEdit{background:#222;border:1px solid #333;border-radius:4px;"
             "color:#ddd;padding:4px 8px;}"
@@ -330,7 +331,7 @@ class MainWindow(QMainWindow):
 
         self.tabs = QTabBar()
         for t in ("User", "Factory", "Library"):
-            self.tabs.addTab(t)
+            self.tabs.addTab(translate(t))
         self.tabs.currentChanged.connect(self._on_tab)
         lay.addWidget(self.tabs)
 
@@ -392,7 +393,7 @@ class MainWindow(QMainWindow):
                 except Exception:
                     log.exception("Error closing failed session")
                 self._session_open = False
-            self.status.showMessage(f"Offline: {e}", 6000)
+            self.status.showMessage(translate("Offline: {error}").format(error=e), 6000)
             self._load_library()
 
     def _refresh_names(self):
@@ -411,11 +412,11 @@ class MainWindow(QMainWindow):
         if i == 0:
             names = getattr(self, "user_names", [])
             for n, name in enumerate(names):
-                self.list.addItem(f"{n+1:2d}. {name or '— vacío —'}")
+                self.list.addItem(f"{n+1:2d}. {name or translate('— vacío —')}")
         elif i == 1:
             names = getattr(self, "factory_names", [])
             for n, name in enumerate(names):
-                self.list.addItem(f"{n+1:2d}. {name or '— vacío —'}")
+                self.list.addItem(f"{n+1:2d}. {name or translate('— vacío —')}")
         else:
             for p in self.library_presets:
                 name = p.get("name") or "—"
@@ -437,7 +438,7 @@ class MainWindow(QMainWindow):
                     self.dev.send_preset(p)
             self._reload()
         except Exception as e:
-            self.status.showMessage(f"Error: {e}", 5000)
+            self.status.showMessage(translate("Error: {error}").format(error=e), 5000)
 
     def _reload(self):
         try:
@@ -446,7 +447,7 @@ class MainWindow(QMainWindow):
             p = self.dev.get_active_preset()
             self._display_preset(p)
         except Exception as e:
-            self.status.showMessage(f"Error reload: {e}", 5000)
+            self.status.showMessage(translate("Error reload: {error}").format(error=e), 5000)
 
     def _display_preset(self, p):
         self.preset = p
@@ -468,7 +469,7 @@ class MainWindow(QMainWindow):
             for name in ("WAH LEVL", "PEDAL"):
                 if name in wah.params:
                     self._display_wah_param(name, wah.params[name])
-        self.status.showMessage(f"Preset: {p.name}")
+        self.status.showMessage(translate("Preset: {name}").format(name=p.name))
 
     def _display_level(self, value):
         blocked = self.level_slider.blockSignals(True)
@@ -562,13 +563,14 @@ class MainWindow(QMainWindow):
         self._sync_busy = False
         self._sync_requested = False
         if self._connected:
-            self.status.showMessage(f"Error sync: {error}", 5000)
+            self.status.showMessage(
+                translate("Error sync: {error}").format(error=error), 5000)
 
     def _on_disconnect(self, error):
         self._connected = False
         self._poll_timer.stop()
         self._sync_timer.stop()
-        self.status.showMessage(f"Desconectado: {error}")
+        self.status.showMessage(translate("Desconectado: {error}").format(error=error))
 
     def _filter(self, text):
         for i in range(self.list.count()):
@@ -589,8 +591,8 @@ class MainWindow(QMainWindow):
             return
         self.list.setCurrentItem(item)
         menu = QMenu(self)
-        menu.addAction("Copy", lambda: self._copy_user_preset(index))
-        menu.addAction("Delete...", lambda: self._delete_user_preset_at(index))
+        menu.addAction(translate("Copy"), lambda: self._copy_user_preset(index))
+        menu.addAction(translate("Delete..."), lambda: self._delete_user_preset_at(index))
         viewport = self.list.viewport()
         if viewport is None:
             raise RuntimeError("Preset list viewport is unavailable")
@@ -602,21 +604,21 @@ class MainWindow(QMainWindow):
         if mb is None:
             raise RuntimeError("Main window menu bar is unavailable")
         mb.setStyleSheet("QMenuBar{background:#121212;color:#ddd;} QMenuBar::item:selected{background:#2a2a2a;}")
-        f = mb.addMenu("Archivo")
+        f = mb.addMenu(translate("Archivo"))
         if f is None:
             raise RuntimeError("Could not create file menu")
-        f.addAction("Backup...", self._backup)
-        f.addAction("Restore...", self._restore)
+        f.addAction(translate("Backup..."), self._backup)
+        f.addAction(translate("Restore..."), self._restore)
         f.addSeparator()
-        f.addAction("Importar preset...", self._import_preset)
-        f.addAction("Exportar preset...", self._export_preset)
-        p = mb.addMenu("Preset")
+        f.addAction(translate("Importar preset..."), self._import_preset)
+        f.addAction(translate("Exportar preset..."), self._export_preset)
+        p = mb.addMenu(translate("Preset"))
         if p is None:
             raise RuntimeError("Could not create preset menu")
-        p.addAction("Store New...", self._store_new)
-        p.addAction("Quick Store", self._quick_store)
-        p.addAction("Delete User Preset...", self._delete_user_preset)
-        p.addAction("Copy", self._copy)
+        p.addAction(translate("Store New..."), self._store_new)
+        p.addAction(translate("Quick Store"), self._quick_store)
+        p.addAction(translate("Delete User Preset..."), self._delete_user_preset)
+        p.addAction(translate("Copy"), self._copy)
 
     def _change_model(self, slot):
         from .effect_picker import EffectPicker
@@ -626,7 +628,8 @@ class MainWindow(QMainWindow):
         cat_map = {"wah": "Wah", "cmpr": "Compressor", "dist": "Distortion", "amp": "Amplifier",
                    "gate": "Gate", "mod": "Mod", "dly": "Delay", "rvb": "Reverb",
                    "eq": "EQ", "vol": "Other"}
-        title = "Selección de amplificador" if s.category == "amp" else "Seleccionar efecto"
+        title = translate("Selección de amplificador" if s.category == "amp"
+                          else "Seleccionar efecto")
         picker = EffectPicker(self.db, current_category=cat_map.get(s.category), parent=self, title=title)
         if picker.exec_() and picker.result_effect:
             model = self.db.model_id(picker.result_effect["address"])
@@ -635,30 +638,36 @@ class MainWindow(QMainWindow):
                     self.dev.set_model(slot, model)
                     self._reload()
                 except Exception as e:
-                    self.status.showMessage(f"Error: {e}", 5000)
+                    self.status.showMessage(
+                        translate("Error: {error}").format(error=e), 5000)
 
     # ------------------------------------------------------- controllers
     def _assign_stomp(self, ctrl, slot):
         try:
             if slot < 0:
                 self.dev.clear_stomp(ctrl)
-                self.status.showMessage(f"{ctrl} sin asignación")
+                self.status.showMessage(translate("{ctrl} unassigned").format(ctrl=ctrl))
             else:
                 self.dev.assign_stomp(ctrl, slot)
-                self.status.showMessage(f"{ctrl} → slot {slot+1}")
+                self.status.showMessage(
+                    translate("{ctrl} → slot {slot}").format(ctrl=ctrl, slot=slot + 1))
             self._reload()
         except Exception as e:
-            self.status.showMessage(f"Error stomp: {e}", 5000)
+            self.status.showMessage(
+                translate("Error stomp: {error}").format(error=e), 5000)
 
     def _assign_expression(self, ctrl, slot, param, minv, maxv):
         try:
             s = self.preset.slots.get(slot)
             flat = s is not None and not getattr(s, "_use_fx_subdict", True)
             self.dev.assign_expression(ctrl, slot, param, minv, maxv, flat=flat)
-            self.status.showMessage(f"{ctrl} → slot {slot+1} {param}")
+            self.status.showMessage(
+                translate("{ctrl} → slot {slot} {param}").format(
+                    ctrl=ctrl, slot=slot + 1, param=param))
             self._reload()
         except Exception as e:
-            self.status.showMessage(f"Error expr: {e}", 5000)
+            self.status.showMessage(
+                translate("Error expr: {error}").format(error=e), 5000)
 
     def _assign_lfo(self, slot, param, minv, maxv, speed, wave):
         try:
@@ -668,10 +677,13 @@ class MainWindow(QMainWindow):
             s = self.preset.slots.get(slot)
             flat = s is not None and not getattr(s, "_use_fx_subdict", True)
             self.dev.assign_lfo(slot, param, minv, maxv, speed, wave, flat=flat)
-            self.status.showMessage(f"LFO → slot {slot+1} {param}")
+            self.status.showMessage(
+                translate("LFO → slot {slot} {param}").format(
+                    slot=slot + 1, param=param))
             self._reload()
         except Exception as e:
-            self.status.showMessage(f"Error lfo: {e}", 5000)
+            self.status.showMessage(
+                translate("Error lfo: {error}").format(error=e), 5000)
 
     def _sync_tempo(self):
         tempo = self.control_panel.tempo
@@ -679,24 +691,26 @@ class MainWindow(QMainWindow):
         if tempo.delay.currentData() is None and tempo.lfo.currentData() is None:
             return
         if not self._connected or preset is None:
-            self.status.showMessage("Tempo: conecta el pedal y carga un preset", 5000)
+            self.status.showMessage(translate("Tempo: conecta el pedal y carga un preset"), 5000)
             return
         errors = []
         beats = tempo.delay.currentData()
         if beats is not None:
             delay = next((s for s in preset.slots.values() if s.category == "dly"), None)
             if delay is None or "TIME" not in delay.params:
-                errors.append("Delay sin parámetro TIME compatible")
+                errors.append(translate("Delay sin parámetro TIME compatible"))
             else:
                 value = delay_ms(tempo.bpm.value(), beats)
                 try:
                     low, high = self.db.param_range(delay.model.split(".", 1)[-1], "TIME")
                     if not low <= value <= high:
-                        errors.append(f"Delay: {value} ms fuera del rango {low}–{high} ms")
+                        errors.append(translate(
+                            "Delay: {value} ms fuera del rango {low}–{high} ms"
+                        ).format(value=value, low=low, high=high))
                     elif value != delay.params["TIME"]:
                         self._set_param(delay.slot, "TIME", value)
                 except KeyError:
-                    errors.append("Rango de delay desconocido")
+                    errors.append(translate("Rango de delay desconocido"))
         beats = tempo.lfo.currentData()
         if beats is not None:
             try:
@@ -706,7 +720,7 @@ class MainWindow(QMainWindow):
             else:
                 ctrl = preset.ctrls.get("lfo1")
                 if ctrl is None or not ctrl.lnk:
-                    errors.append("LFO sin asignar")
+                    errors.append(translate("LFO sin asignar"))
                 elif ctrl.speed != speed:
                     try:
                         if hasattr(self, "worker"):
@@ -722,7 +736,7 @@ class MainWindow(QMainWindow):
                         if hasattr(self, "worker"):
                             self.worker.invalidate()
                         log.exception("Could not synchronize LFO speed")
-                        errors.append(f"Error LFO: {exc}")
+                        errors.append(translate("Error LFO: {error}").format(error=exc))
                         self._sync_timer.start()
         if errors:
             self.status.showMessage("; ".join(errors), 6000)
@@ -730,7 +744,8 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------ file operations
     def _backup(self):
         from PyQt5.QtWidgets import QFileDialog
-        path, _ = QFileDialog.getSaveFileName(self, "Backup 99 presets", "rp360_backup.json", "JSON (*.json)")
+        path, _ = QFileDialog.getSaveFileName(
+            self, translate("Backup 99 presets"), "rp360_backup.json", "JSON (*.json)")
         if not path:
             return
         try:
@@ -738,17 +753,21 @@ class MainWindow(QMainWindow):
             data = {"user": [p.to_json() if p else None for p in presets]}
             import json as _json
             Path(path).write_text(_json.dumps(data, indent=2))
-            self.status.showMessage(f"Backup → {path}")
+            self.status.showMessage(translate("Backup → {path}").format(path=path))
         except Exception as e:
-            self.status.showMessage(f"Error backup: {e}", 5000)
+            self.status.showMessage(
+                translate("Error backup: {error}").format(error=e), 5000)
 
     def _restore(self):
         from PyQt5.QtWidgets import QFileDialog, QMessageBox
-        path, _ = QFileDialog.getOpenFileName(self, "Restaurar 99 presets", "", "JSON (*.json)")
+        path, _ = QFileDialog.getOpenFileName(
+            self, translate("Restaurar 99 presets"), "", "JSON (*.json)")
         if not path:
             return
-        if QMessageBox.question(self, "Restore",
-                                "Los presets del dispositivo serán sobrescritos. ¿Continuar?") != QMessageBox.Yes:
+        if QMessageBox.question(
+                self, translate("Restore"),
+                translate("Los presets del dispositivo serán sobrescritos. ¿Continuar?")) \
+                != QMessageBox.Yes:
             return
         try:
             import json as _json
@@ -756,13 +775,16 @@ class MainWindow(QMainWindow):
             data = _json.loads(Path(path).read_text())
             presets = [Preset.from_json(d) if d else None for d in data["user"]]
             n = self.dev.restore_user_bank(presets)
-            self.status.showMessage(f"Restaurados {n} presets")
+            self.status.showMessage(
+                translate("Restaurados {count} presets").format(count=n))
         except Exception as e:
-            self.status.showMessage(f"Error restore: {e}", 5000)
+            self.status.showMessage(
+                translate("Error restore: {error}").format(error=e), 5000)
 
     def _import_preset(self):
         from PyQt5.QtWidgets import QFileDialog
-        path, _ = QFileDialog.getOpenFileName(self, "Importar preset", "", "RP360 Preset (*.rp360p);;JSON (*.json)")
+        path, _ = QFileDialog.getOpenFileName(
+            self, translate("Importar preset..."), "", "RP360 Preset (*.rp360p);;JSON (*.json)")
         if not path:
             return
         try:
@@ -772,47 +794,59 @@ class MainWindow(QMainWindow):
             preset = Preset.from_json(d.get("preset", d))
             self.dev.send_preset(preset)
             self._reload()
-            self.status.showMessage(f"Importado: {preset.name}")
+            self.status.showMessage(
+                translate("Importado: {name}").format(name=preset.name))
         except Exception as e:
-            self.status.showMessage(f"Error import: {e}", 5000)
+            self.status.showMessage(
+                translate("Error import: {error}").format(error=e), 5000)
 
     def _export_preset(self):
         from PyQt5.QtWidgets import QFileDialog
-        path, _ = QFileDialog.getSaveFileName(self, "Exportar preset", f"{self.preset.name}.rp360p", "RP360 Preset (*.rp360p)")
+        path, _ = QFileDialog.getSaveFileName(
+            self, translate("Exportar preset..."), f"{self.preset.name}.rp360p",
+            "RP360 Preset (*.rp360p)")
         if not path:
             return
         try:
             import json as _json
             Path(path).write_text(_json.dumps({"preset": self.preset.to_json()}, indent=2))
-            self.status.showMessage(f"Exportado → {path}")
+            self.status.showMessage(translate("Exported → {path}").format(path=path))
         except Exception as e:
-            self.status.showMessage(f"Error export: {e}", 5000)
+            self.status.showMessage(
+                translate("Error export: {error}").format(error=e), 5000)
 
     def _store_new(self):
         from PyQt5.QtWidgets import QInputDialog
-        name, ok = QInputDialog.getText(self, "Store New", "Nombre del preset:", text=self.preset.name)
+        name, ok = QInputDialog.getText(
+            self, translate("Store New"), translate("Nombre del preset:"),
+            text=self.preset.name)
         if not ok:
             return
-        idx, ok = QInputDialog.getInt(self, "Store New", "Slot (1-99):", 1, 1, 99)
+        idx, ok = QInputDialog.getInt(
+            self, translate("Store New"), translate("Slot (1-99):"), 1, 1, 99)
         if not ok:
             return
         try:
             self.dev.save_and_rename(idx - 1, name)
             self._refresh_names()
-            self.status.showMessage(f"Guardado en User {idx}")
+            self.status.showMessage(
+                translate("Guardado en User {slot}").format(slot=idx))
         except Exception as e:
-            self.status.showMessage(f"Error: {e}", 5000)
+            self.status.showMessage(
+                translate("Error: {error}").format(error=e), 5000)
 
     def _quick_store(self):
         try:
             i = self.browser.list.currentRow()
             if self.tabs.currentIndex() != 0 or i < 0:
-                self.status.showMessage("Selecciona un slot de User", 3000)
+                self.status.showMessage(translate("Selecciona un slot de User"), 3000)
                 return
             self.dev.save_to_user_slot(i)
-            self.status.showMessage(f"Quick store en User {i+1}")
+            self.status.showMessage(
+                translate("Quick store en User {slot}").format(slot=i + 1))
         except Exception as e:
-            self.status.showMessage(f"Error: {e}", 5000)
+            self.status.showMessage(
+                translate("Error: {error}").format(error=e), 5000)
 
     def _delete_user_preset(self):
         from PyQt5.QtWidgets import QInputDialog
@@ -824,7 +858,7 @@ class MainWindow(QMainWindow):
                 default_slot = selected + 1
 
         slot, ok = QInputDialog.getInt(
-            self, "Delete User Preset", "Slot (1-99):",
+            self, translate("Delete User Preset"), translate("Slot (1-99):"),
             default_slot, 1, 99
         )
         if not ok:
@@ -836,14 +870,17 @@ class MainWindow(QMainWindow):
         name = ""
         if 0 <= index < len(getattr(self, "user_names", [])):
             name = self.user_names[index] or ""
-        label = f'User {slot} ("{name}")' if name else f"User {slot}"
+        label = translate('User {slot} ("{name}")').format(slot=slot, name=name) \
+            if name else translate("User {slot}").format(slot=slot)
 
         reply = QMessageBox.question(
             self,
-            "Delete User Preset",
-            f"Reemplazar {label} por «Preset {slot}» con el amplificador y gabinete "
-            "predeterminados, sin otros efectos? La posición no quedará vacía. "
-            "El preset cargado en el editor no cambiará. Esta operación no se puede deshacer.",
+            translate("Delete User Preset"),
+            translate(
+                "Reemplazar {label} por «Preset {slot}» con el amplificador y gabinete "
+                "predeterminados, sin otros efectos? La posición no quedará vacía. "
+                "El preset cargado en el editor no cambiará. Esta operación no se puede deshacer."
+            ).format(label=label, slot=slot),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -854,7 +891,8 @@ class MainWindow(QMainWindow):
             replacement = self.db.build_reset_preset(f"Preset {slot}")
             self.dev.write_user_preset(index, replacement)
         except Exception as e:
-            self.status.showMessage(f"Error al eliminar: {e}", 5000)
+            self.status.showMessage(
+                translate("Error al eliminar: {error}").format(error=e), 5000)
             return
 
         try:
@@ -867,9 +905,11 @@ class MainWindow(QMainWindow):
                     or any(ctrl.lnk for ctrl in saved.ctrls.values())
                     or saved.name != replacement.name
                     or saved.prs_levl != replacement.prs_levl):
-                raise ValueError("el dispositivo no devolvió el preset predeterminado")
+                raise ValueError(translate("el dispositivo no devolvió el preset predeterminado"))
         except Exception as e:
-            self.status.showMessage(f"Preset User {slot}: escritura enviada; error al verificar: {e}", 8000)
+            self.status.showMessage(
+                translate("Preset User {slot}: escritura enviada; error al verificar: {error}")
+                .format(slot=slot, error=e), 8000)
             return
 
         try:
@@ -883,23 +923,27 @@ class MainWindow(QMainWindow):
                 if item is None:
                     self._on_tab(0)
                 else:
-                    item.setText(f"{index+1:2d}. {saved.name or '— vacío —'}")
+                    item.setText(f"{index+1:2d}. {saved.name or translate('— vacío —')}")
                 self._filter(self.search.text())
         except Exception as e:
-            self.status.showMessage(f"Preset User {slot} restablecido; error al actualizar: {e}", 8000)
+            self.status.showMessage(
+                translate("Preset User {slot} restablecido; error al actualizar: {error}")
+                .format(slot=slot, error=e), 8000)
             return
-        self.status.showMessage(f"Preset User {slot} restablecido")
+        self.status.showMessage(
+            translate("Preset User {slot} restablecido").format(slot=slot))
 
     def _copy_user_preset(self, index):
         try:
             preset = self.dev.get_user_preset(index)
             self._copy_preset(preset)
         except Exception as e:
-            self.status.showMessage(f"Error al copiar: {e}", 5000)
+            self.status.showMessage(
+                translate("Error al copiar: {error}").format(error=e), 5000)
 
     def _copy_preset(self, preset):
         self._clipboard = json.dumps({"preset": preset.to_json()})
-        self.status.showMessage("Preset copiado al portapapeles interno")
+        self.status.showMessage(translate("Preset copiado al portapapeles interno"))
 
     def _copy(self):
         self._copy_preset(self.preset)
@@ -909,9 +953,11 @@ class MainWindow(QMainWindow):
         if self.tabs.currentIndex() == 0 and i >= 0:
             try:
                 self.dev.save_and_rename(i, self.preset.name)
-                self.status.showMessage(f"Guardado en User {i+1}")
+                self.status.showMessage(
+                    translate("Guardado en User {slot}").format(slot=i + 1))
             except Exception as e:
-                self.status.showMessage(f"Error: {e}", 5000)
+                self.status.showMessage(
+                    translate("Error: {error}").format(error=e), 5000)
 
     def _set_param(self, slot, param, value):
         try:
@@ -930,7 +976,8 @@ class MainWindow(QMainWindow):
         except Exception as e:
             if hasattr(self, "worker"):
                 self.worker.invalidate()
-            self.status.showMessage(f"Error: {e}", 3000)
+            self.status.showMessage(
+                translate("Error: {error}").format(error=e), 3000)
             self._sync_timer.start()
 
     def _set_enable(self, slot, enabled):
@@ -942,7 +989,8 @@ class MainWindow(QMainWindow):
             self._apply_slot_value(slot, "ENABLE", enabled)
         except Exception as e:
             self.worker.invalidate()
-            self.status.showMessage(f"Error: {e}", 3000)
+            self.status.showMessage(
+                translate("Error: {error}").format(error=e), 3000)
             self._sync_timer.start()
 
     def _set_amp_bypass(self, slot, bypass):
@@ -961,7 +1009,8 @@ class MainWindow(QMainWindow):
         except Exception as e:
             if hasattr(self, "worker"):
                 self.worker.invalidate()
-            self.status.showMessage(f"Error level: {e}", 3000)
+            self.status.showMessage(
+                translate("Error level: {error}").format(error=e), 3000)
             self._sync_timer.start()
 
     def _set_cabinet(self, slot, cab_idx):
@@ -969,14 +1018,16 @@ class MainWindow(QMainWindow):
             self.dev.set_param(slot, "CABINET", cab_idx)
             self._reload()
         except Exception as e:
-            self.status.showMessage(f"Error cabinet: {e}", 3000)
+            self.status.showMessage(
+                translate("Error cabinet: {error}").format(error=e), 3000)
 
     def _delete_slot(self, slot):
         try:
             self.dev.delete_effect(slot)
             self._reload()
         except Exception as e:
-            self.status.showMessage(f"Error: {e}", 3000)
+            self.status.showMessage(
+                translate("Error: {error}").format(error=e), 3000)
 
     def _reorder(self, src, target):
         """Reorder the chain: move the effect at slot `src` to position `target`."""
@@ -987,13 +1038,14 @@ class MainWindow(QMainWindow):
             self.dev.reorder_chain(occupied)
             self._reload()
         except Exception as e:
-            self.status.showMessage(f"Error al reordenar: {e}", 5000)
+            self.status.showMessage(
+                translate("Error al reordenar: {error}").format(error=e), 5000)
 
     def _add_effect(self):
         from .effect_picker import EffectPicker
         from ..effects_db import SLOT_CATEGORY, natural_positions
         if not hasattr(self, "preset"):
-            self.status.showMessage("No hay preset cargado", 5000)
+            self.status.showMessage(translate("No hay preset cargado"), 5000)
             return
         # category already present -> cannot add another of that category
         prefix_to_cat = {"wah": "Wah", "cmpr": "Compressor", "dist": "Distortion",
@@ -1003,7 +1055,8 @@ class MainWindow(QMainWindow):
                            for s in self.preset.slots.values()}
         allowed = [c for c in SLOT_CATEGORY.values() if c not in used_categories]
         if not allowed:
-            self.status.showMessage("Cadena completa: todas las categorías están en uso", 5000)
+            self.status.showMessage(
+                translate("Cadena completa: todas las categorías están en uso"), 5000)
             return
         picker = EffectPicker(self.db, parent=self, allowed_categories=allowed)
         if not (picker.exec_() and picker.result_effect):
@@ -1018,14 +1071,15 @@ class MainWindow(QMainWindow):
         if target is None:
             target = next((i for i in range(10) if i not in self.preset.slots), None)
         if target is None:
-            self.status.showMessage("No hay posición libre en la cadena", 5000)
+            self.status.showMessage(translate("No hay posición libre en la cadena"), 5000)
             return
         try:
             slot_data = self.db.build_slot_data(effect["address"])
             self.dev.add_effect(target, slot_data)
             self._reload()
         except Exception as e:
-            self.status.showMessage(f"Error: {e}", 5000)
+            self.status.showMessage(
+                translate("Error: {error}").format(error=e), 5000)
 
     def _on_notif(self, msg, revision=None):
         if not self._connected or not msg:

@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QSize, pyqtSignal
 from PyQt5.QtGui import QPixmap, QIcon
 from ..runtime import img_path
+from .i18n import translate
 
 
 CATEGORIES = [
@@ -33,7 +34,7 @@ class EffectPicker(QDialog):
         super().__init__(parent)
         self.db = db
         self.result_effect = None
-        self.setWindowTitle(title or "Seleccionar efecto")
+        self.setWindowTitle(translate(title or "Seleccionar efecto"))
         self.resize(760, 560)
         self.setStyleSheet("QDialog{background:#181818;}")
 
@@ -85,17 +86,17 @@ class EffectPicker(QDialog):
         # buttons
         btns = QHBoxLayout()
         if self._locked:
-            title = QLabel(f"{current_category}")
+            title = QLabel(translate(current_category))
             title.setStyleSheet("color:#ffb000; font-weight:bold; font-size:13px;")
             btns.addWidget(title)
         btns.addStretch()
-        cancel = QPushButton("Cancelar")
+        cancel = QPushButton(translate("Cancelar"))
         cancel.clicked.connect(self.reject)
         btns.addWidget(cancel)
         root.addLayout(btns)
 
         # label mapping
-        label_map = dict(CATEGORIES)  # db_cat -> label
+        label_map = {category: translate(label) for category, label in CATEGORIES}
 
         # populate
         if self.cat_list is not None:

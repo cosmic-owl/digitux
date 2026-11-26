@@ -11,6 +11,7 @@ from PyQt5.QtGui import QPainter, QPixmap, QColor, QDrag
 
 from .pedal_widget import PedalWidget
 from .pedal_widget import DISP_W, DISP_H
+from .i18n import translate
 from ..runtime import img_path
 
 MIME = "application/x-nexus-slot"
@@ -50,7 +51,7 @@ class AmpPin(QWidget):
             p.drawEllipse(10, 8, 40, 40)
         # label
         p.setPen(QColor(235, 235, 235))
-        p.drawText(0, 84, 60, 20, Qt.AlignCenter, "AMP")
+        p.drawText(0, 84, 60, 20, Qt.AlignCenter, translate("AMP"))
         p.end()
 
     def mousePressEvent(self, e):

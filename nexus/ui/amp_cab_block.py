@@ -8,6 +8,7 @@ from PyQt5.QtGui import QPixmap, QPainter, QColor, QFont
 from .eq_display import EqDisplay
 from .knob import Knob
 from ..runtime import img_path
+from .i18n import translate
 
 AMP_DISP_W = 760
 AMP_DISP_H = 252
@@ -35,7 +36,7 @@ class AmpView(QWidget):
         self._led_on = self._led_off = None
         self._sw_on = self._sw_off = None
         self.setFixedSize(AMP_DISP_W, AMP_DISP_H)
-        self.setToolTip("Clic en la placa para cambiar amplificador")
+        self.setToolTip(translate("Clic en la placa para cambiar amplificador"))
         self._load_bits()
         self.eq_display = EqDisplay(self)
         self.eq_display.move(490, 75)
@@ -121,7 +122,7 @@ class AmpView(QWidget):
         else:
             p.setPen(QColor(255, 176, 0))
             p.setFont(QFont("Sans", 14, QFont.Bold))
-            p.drawText(self.rect(), Qt.AlignCenter, "Amplificador")
+            p.drawText(self.rect(), Qt.AlignCenter, translate("Amplificador"))
 
         # LED + lever baked into the amp's colored area (right, over the chassis)
         enabled = self.slot is None or bool(self.slot.enable)
@@ -135,7 +136,7 @@ class AmpView(QWidget):
         # ON
         p.setPen(QColor(255, 120, 120) if enabled else QColor(90, 90, 90))
         p.setFont(QFont("Sans", 8, QFont.Bold))
-        p.drawText(QRect(col_x - 35, int(72 * sy), 71, 12), Qt.AlignCenter, "ON")
+        p.drawText(QRect(col_x - 35, int(72 * sy), 71, 12), Qt.AlignCenter, translate("ON"))
         # lever
         sw = self._sw_on if enabled else self._sw_off
         if sw is not None:
@@ -143,7 +144,8 @@ class AmpView(QWidget):
             p.drawPixmap(col_x - pm.width() // 2, int(88 * sy), pm)
         # Bypass
         p.setPen(QColor(200, 200, 200) if enabled else QColor(255, 120, 120))
-        p.drawText(QRect(col_x - 35, int(146 * sy), 71, 14), Qt.AlignCenter, "Bypass")
+        p.drawText(QRect(col_x - 35, int(146 * sy), 71, 14), Qt.AlignCenter,
+                   translate("Bypass"))
         p.end()
 
     def _switch_rect(self):
@@ -201,7 +203,7 @@ class AmpCabBlock(QWidget):
         right.setSpacing(6)
         right.setContentsMargins(0, 0, 20, 0)
 
-        self.cab_lbl = QLabel("Cabinet")
+        self.cab_lbl = QLabel(translate("Cabinet"))
         self.cab_lbl.setFixedSize(CAB_DISP_W, CAB_DISP_H)
         self.cab_lbl.setAlignment(Qt.AlignCenter)
         self.cab_lbl.setStyleSheet(
@@ -224,7 +226,7 @@ class AmpCabBlock(QWidget):
         self.amp_slot = slot
         self.amp_view.set_slot(slot)
         if slot is None:
-            self.cab_lbl.setText("Cabinet")
+            self.cab_lbl.setText(translate("Cabinet"))
             return
         addr = slot.model.split(".")[-1] if "." in slot.model else slot.model
         effect = self.db.by_address(addr)

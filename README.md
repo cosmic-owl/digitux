@@ -51,6 +51,9 @@ proyecto y hacer posible este fork.
   reconciliación cada cinco segundos recupera cambios no recibidos. Los
   comandos serie se serializan y los cambios de parámetros más recientes se
   conservan al completar una lectura.
+- La interfaz cambia automáticamente según el idioma del sistema: español,
+  inglés, francés, alemán, italiano o japonés. Los demás idiomas usan el texto
+  original de la interfaz.
 
 La aplicación se desarrolló originalmente para Linux. El comportamiento del
 hardware y del audio puede variar según el sistema y el dispositivo; la

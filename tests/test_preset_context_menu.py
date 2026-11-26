@@ -9,6 +9,7 @@ from PyQt5.QtCore import QPoint
 from PyQt5.QtWidgets import QApplication, QInputDialog, QMenu, QMessageBox
 
 from nexus.model import Preset
+from nexus.ui.i18n import translate
 from nexus.ui.main_window import MainWindow
 
 
@@ -36,7 +37,7 @@ class PresetContextMenuTests(unittest.TestCase):
 
         def execute(menu, _):
             actions = {entry.text(): entry for entry in menu.actions()}
-            self.assertEqual(set(actions), {"Copy", "Delete..."})
+            self.assertEqual(set(actions), {translate("Copy"), translate("Delete...")})
             actions[action].trigger()
 
         with patch.object(QMenu, "exec_", execute):
@@ -48,29 +49,46 @@ class PresetContextMenuTests(unittest.TestCase):
         self.window.dev.get_user_preset.side_effect = None
         self.window.dev.get_user_preset.return_value = preset
         self.window.list.setCurrentRow(0)
-        self.open_menu(1, "Copy")
+        self.open_menu(1, translate("Copy"))
         self.window.dev.get_user_preset.assert_called_once_with(1)
         self.assertEqual(json.loads(self.window._clipboard), {"preset": {"name": "Second"}})
         self.assertEqual(self.window.list.currentRow(), 1)
 
     def test_delete_requires_confirmation_and_targets_clicked_slot(self):
         with patch.object(QMessageBox, "question", return_value=QMessageBox.No):
-            self.open_menu(1, "Delete...")
+            self.open_menu(1, translate("Delete..."))
         self.window.dev.write_user_preset.assert_not_called()
 
         replacement = self.window.db.build_reset_preset("Preset 2")
         self.window.dev.get_user_preset.side_effect = [replacement]
         with patch.object(QMessageBox, "question", return_value=QMessageBox.Yes) as confirm:
-            self.open_menu(1, "Delete...")
+            self.open_menu(1, translate("Delete..."))
         self.window.dev.write_user_preset.assert_called_once_with(1, replacement)
-        self.assertIn('User 2 ("Second")', confirm.call_args.args[2])
+        self.assertIn(
+            translate('User {slot} ("{name}")').format(slot=2, name="Second"),
+            confirm.call_args.args[2],
+        )
         self.assertIn("Preset 2", confirm.call_args.args[2])
-        self.assertIn("no quedará vacía", confirm.call_args.args[2])
+        self.assertEqual(
+            confirm.call_args.args[2],
+            translate(
+                "Reemplazar {label} por «Preset {slot}» con el amplificador y gabinete "
+                "predeterminados, sin otros efectos? La posición no quedará vacía. "
+                "El preset cargado en el editor no cambiará. Esta operación no se puede deshacer."
+            ).format(
+                label=translate('User {slot} ("{name}")').format(
+                    slot=2, name="Second"),
+                slot=2,
+            ),
+        )
         self.assertEqual(self.window.user_names, ["First", "Preset 2", None])
         self.assertEqual(self.window.list.item(1).text(), " 2. Preset 2")
         self.window.dev.user_preset_names.assert_not_called()
         self.window.dev.factory_preset_names.assert_not_called()
-        self.assertIn("restablecido", self.window.status.currentMessage())
+        self.assertEqual(
+            self.window.status.currentMessage(),
+            translate("Preset User {slot} restablecido").format(slot=2),
+        )
 
     def test_empty_slots_and_other_tabs_have_no_menu(self):
         with patch.object(QMenu, "exec_") as execute:
@@ -90,19 +108,26 @@ class PresetContextMenuTests(unittest.TestCase):
 
     def test_delete_reports_when_saved_preset_does_not_match(self):
         with patch.object(QMessageBox, "question", return_value=QMessageBox.Yes):
-            self.open_menu(1, "Delete...")
-        self.assertIn("error al verificar", self.window.status.currentMessage())
+            self.open_menu(1, translate("Delete..."))
+        self.assertEqual(
+            self.window.status.currentMessage(),
+            translate("Preset User {slot}: escritura enviada; error al verificar: {error}")
+            .format(
+                slot=2,
+                error=translate("el dispositivo no devolvió el preset predeterminado"),
+            ),
+        )
 
     def test_device_errors_are_reported(self):
         self.window.dev.get_user_preset.side_effect = RuntimeError("read failed")
-        self.open_menu(1, "Copy")
+        self.open_menu(1, translate("Copy"))
         self.assertIn("read failed", self.window.status.currentMessage())
 
         self.window.dev.get_user_preset.side_effect = None
         self.window.dev.get_user_preset.return_value = Preset(name="Second")
         self.window.dev.write_user_preset.side_effect = RuntimeError("write failed")
         with patch.object(QMessageBox, "question", return_value=QMessageBox.Yes):
-            self.open_menu(1, "Delete...")
+            self.open_menu(1, translate("Delete..."))
         self.assertIn("write failed", self.window.status.currentMessage())
         self.window.dev.user_preset_names.assert_not_called()
 
@@ -111,9 +136,13 @@ class PresetContextMenuTests(unittest.TestCase):
         self.window.dev.get_user_preset.side_effect = [replacement]
         with patch.object(QMessageBox, "question", return_value=QMessageBox.Yes), \
              patch.object(self.window, "_filter", side_effect=RuntimeError("update failed")):
-            self.open_menu(1, "Delete...")
+            self.open_menu(1, translate("Delete..."))
         self.window.dev.write_user_preset.assert_called_once_with(1, replacement)
-        self.assertIn("restablecido", self.window.status.currentMessage())
+        self.assertEqual(
+            self.window.status.currentMessage(),
+            translate("Preset User {slot} restablecido; error al actualizar: {error}")
+            .format(slot=2, error="update failed"),
+        )
         self.assertIn("update failed", self.window.status.currentMessage())
 
     def test_reset_name_uses_one_based_slot_index(self):
@@ -130,7 +159,10 @@ class PresetContextMenuTests(unittest.TestCase):
                     self.window._delete_user_preset_at(index)
                 self.window.dev.write_user_preset.assert_called_once_with(index, replacement)
                 self.assertIn(f"Preset {index + 1}", confirm.call_args.args[2])
-                self.assertIn("restablecido", self.window.status.currentMessage())
+                self.assertEqual(
+                    self.window.status.currentMessage(),
+                    translate("Preset User {slot} restablecido").format(slot=index + 1),
+                )
 
 
 if __name__ == "__main__":

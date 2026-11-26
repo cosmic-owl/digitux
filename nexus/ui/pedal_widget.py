@@ -4,6 +4,7 @@ from PyQt5.QtCore import Qt, pyqtSignal, QRect
 from PyQt5.QtGui import QPixmap, QPainter, QColor, QPen, QFont
 
 from .knob import Knob
+from .i18n import translate
 from ..effects_db import visible_pedal_params
 from ..runtime import img_path
 
@@ -25,7 +26,7 @@ class BandwidthSwitch(QWidget):
         self.setFixedSize(78, 59)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setAccessibleName(name)
-        self.setToolTip(f"{name}: Wide, Medium or Narrow")
+        self.setToolTip(f"{name}: {translate('Wide, Medium or Narrow')}")
         self.value = value
 
     @property
@@ -36,7 +37,8 @@ class BandwidthSwitch(QWidget):
     def value(self, value):
         self._value = value if type(value) is int and 0 <= value < 3 else None
         self.setAccessibleDescription(
-            self._choices[self._value] if self._value is not None else "Unknown"
+            translate(self._choices[self._value]) if self._value is not None
+            else translate("Unknown")
         )
         self.update()
 
@@ -57,7 +59,8 @@ class BandwidthSwitch(QWidget):
         for i, text in enumerate(self._choices):
             p.setPen(QColor(255, 190, 60) if i == self._value else QColor(180, 180, 180))
             p.drawText(QRect(25, i * 12, 53, 14),
-                       Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, text)
+                       Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                       translate(text))
         p.setPen(QColor(225, 225, 225))
         p.setFont(QFont("Sans", 8, QFont.Bold))
         p.drawText(QRect(0, 40, 78, 18), Qt.AlignmentFlag.AlignCenter, self.name)
@@ -210,7 +213,7 @@ class PedalWidget(QWidget):
             switch = BandwidthSwitch(bandwidth, self.slot.params.get(bandwidth), self)
             if bandwidth not in self.slot.params:
                 switch.setEnabled(False)
-                switch.setToolTip(f"{bandwidth}: parameter unavailable")
+                switch.setToolTip(f"{bandwidth}: {translate('parameter unavailable')}")
             switch.move(x - switch.width() // 2, 149)
             switch.valueChanged.connect(
                 lambda value, n=bandwidth: self.param_changed.emit(self.index, n, value)
@@ -292,6 +295,6 @@ class PedalWidget(QWidget):
 
     def contextMenuEvent(self, e):
         menu = QMenu(self)
-        menu.addAction("Cambiar efecto...", lambda: self.change_requested.emit(self.index))
-        menu.addAction("Eliminar", lambda: self.delete_requested.emit(self.index))
+        menu.addAction(translate("Cambiar efecto..."), lambda: self.change_requested.emit(self.index))
+        menu.addAction(translate("Eliminar"), lambda: self.delete_requested.emit(self.index))
         menu.exec_(e.globalPos())
