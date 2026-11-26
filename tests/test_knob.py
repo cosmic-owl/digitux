@@ -101,6 +101,53 @@ class KnobDrawingTest(unittest.TestCase):
         short = QImage(str(img_path("pedals", db.by_address("LEX HALL")["image"])))
         self.assertNotEqual(short.pixelColor(110, 180).getRgb()[:3], (42, 42, 46))
 
+    def test_cabinet_speakers_are_centered_inside_grille(self):
+        db = EffectsDB()
+        speaker_colors = {(48, 46, 42), (20, 18, 16), (200, 196, 188)}
+        for index, name in enumerate(db.cabinet_names()):
+            with self.subTest(cabinet=name):
+                image = QImage(str(img_path("cabs", db.cabinet_at(index)["image"])))
+                self.assertFalse(image.isNull())
+                pixels = {(x, y) for x in range(29, 172) for y in range(57, 156)
+                          if image.pixelColor(x, y).getRgb()[:3] in speaker_colors}
+                components = []
+                while pixels:
+                    pending = [pixels.pop()]
+                    component = set(pending)
+                    while pending:
+                        x, y = pending.pop()
+                        for point in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+                            if point in pixels:
+                                pixels.remove(point)
+                                component.add(point)
+                                pending.append(point)
+                    components.append(component)
+                expected = int(name[0]) if name.startswith(("1x", "2x", "4x")) else 1
+                self.assertEqual(len(components), expected)
+                points = set().union(*components)
+                left, right = min(x for x, _ in points), max(x for x, _ in points)
+                top, bottom = min(y for _, y in points), max(y for _, y in points)
+                self.assertGreater(left, 29)
+                self.assertLess(right, 171)
+                self.assertGreater(top, 57)
+                self.assertLess(bottom, 155)
+                self.assertEqual(left + right, 200)
+                self.assertEqual(top + bottom, 212)
+                bounds = [(min(x for x, _ in part), max(x for x, _ in part),
+                           min(y for _, y in part), max(y for _, y in part))
+                          for part in components]
+                self.assertEqual(len({(right - left, bottom - top)
+                                      for left, right, top, bottom in bounds}), 1)
+                centers = {(left + right, top + bottom) for left, right, top, bottom in bounds}
+                if expected == 2:
+                    self.assertEqual(len({y for _, y in centers}), 1)
+                if expected == 4:
+                    xs = {x for x, _ in centers}
+                    ys = {y for _, y in centers}
+                    self.assertEqual(len(xs), 2)
+                    self.assertEqual(len(ys), 2)
+                    self.assertEqual(centers, {(x, y) for x in xs for y in ys})
+
     def test_amplifier_knobs_stay_centered_and_interactive(self):
         db = EffectsDB()
         view = AmpView(db)

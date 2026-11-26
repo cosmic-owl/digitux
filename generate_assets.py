@@ -194,18 +194,18 @@ def make_cab(name):
     rim = (20, 18, 16)
     crust = (200, 196, 188)
     if n_speakers <= 1:
-        x0, y0 = 48, 80
-        d.ellipse([x0, y0, x0 + 104, y0 + 104], fill=speaker, outline=rim, width=3)
-        d.ellipse([x0 + 12, y0 + 12, x0 + 92, y0 + 92], outline=crust, width=2)
+        centers, radius, inset = [(100, 106)], 42, 10
     elif n_speakers == 2:
-        for cx in (40, 116):
-            d.ellipse([cx, 80, cx + 60, 140], fill=speaker, outline=rim, width=3)
-            d.ellipse([cx + 7, 87, cx + 53, 133], outline=crust, width=2)
+        centers, radius, inset = [(65, 106), (135, 106)], 28, 7
     else:  # 4 bocinas (2x2)
-        for cx in (40, 112):
-            for cy in (70, 122):
-                d.ellipse([cx, cy, cx + 48, cy + 48], fill=speaker, outline=rim, width=2)
-                d.ellipse([cx + 6, cy + 6, cx + 42, cy + 42], outline=crust, width=2)
+        centers = [(x, y) for y in (82, 130) for x in (70, 130)]
+        radius, inset = 20, 5
+    for x, y in centers:
+        d.ellipse([x - radius, y - radius, x + radius, y + radius],
+                  fill=speaker, outline=rim, width=3 if n_speakers <= 2 else 2)
+        inner_radius = radius - inset
+        d.ellipse([x - inner_radius, y - inner_radius, x + inner_radius, y + inner_radius],
+                  outline=crust, width=2)
     f_name = font(FONT_REG, 13)
     bbox = d.textbbox((0, 0), name, font=f_name)
     tw = bbox[2] - bbox[0]
