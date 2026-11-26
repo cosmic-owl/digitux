@@ -23,6 +23,8 @@ proyecto y hacer posible este fork.
 
 - Editar parámetros, seleccionar modelos y gabinetes, activar o desactivar
   efectos y reordenar la cadena.
+- Editar las tres bandas del EQ en un pedal más ancho, con selectores de ancho
+  de banda Wide/Medium/Narrow.
 - Explorar los presets User, Factory y Library incluidos; importar y exportar
   presets; y respaldar o restaurar presets de usuario en JSON.
 - Configurar asignaciones de stomp, expresión y LFO.

@@ -11,6 +11,88 @@ SRC_W = 220.0
 SRC_H = 364.0
 DISP_W = 180
 DISP_H = 298
+EQ_DISP_W = 282
+
+
+class BandwidthSwitch(QWidget):
+    valueChanged = pyqtSignal(int)
+    _choices = ("WIDE", "MEDIUM", "NARROW")
+
+    def __init__(self, name, value, parent=None):
+        super().__init__(parent)
+        self.name = name
+        self._value = None
+        self.setFixedSize(78, 59)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setAccessibleName(name)
+        self.setToolTip(f"{name}: Wide, Medium or Narrow")
+        self.value = value
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, value):
+        self._value = value if type(value) is int and 0 <= value < 3 else None
+        self.setAccessibleDescription(
+            self._choices[self._value] if self._value is not None else "Unknown"
+        )
+        self.update()
+
+    def paintEvent(self, a0):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(QPen(QColor(105, 105, 105), 1))
+        p.setBrush(QColor(18, 18, 20))
+        p.drawRoundedRect(8, 3, 13, 35, 6, 6)
+        if self._value is not None:
+            p.setPen(QColor(40, 35, 25))
+            p.setBrush(QColor(255, 176, 0))
+            p.drawEllipse(9, 3 + self._value * 12, 11, 11)
+        else:
+            p.setPen(QColor(255, 190, 60))
+            p.drawText(QRect(8, 3, 13, 35), Qt.AlignmentFlag.AlignCenter, "?")
+        p.setFont(QFont("Sans", 7, QFont.Bold))
+        for i, text in enumerate(self._choices):
+            p.setPen(QColor(255, 190, 60) if i == self._value else QColor(180, 180, 180))
+            p.drawText(QRect(25, i * 12, 53, 14),
+                       Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, text)
+        p.setPen(QColor(225, 225, 225))
+        p.setFont(QFont("Sans", 8, QFont.Bold))
+        p.drawText(QRect(0, 40, 78, 18), Qt.AlignmentFlag.AlignCenter, self.name)
+        if self.hasFocus():
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.setPen(QPen(QColor(255, 176, 0), 1, Qt.PenStyle.DotLine))
+            p.drawRoundedRect(1, 1, 75, 56, 4, 4)
+
+    def mousePressEvent(self, a0):
+        if a0 is not None:
+            if a0.button() == Qt.MouseButton.LeftButton:
+                self.setFocus(Qt.FocusReason.MouseFocusReason)
+                if 0 <= a0.pos().y() < 39:
+                    self._select(min(a0.pos().y() // 12, 2))
+            a0.accept()
+
+    def mouseReleaseEvent(self, a0):
+        if a0 is not None:
+            a0.accept()
+
+    def keyPressEvent(self, a0):
+        if a0 is None:
+            return
+        if a0.key() in (Qt.Key.Key_Up, Qt.Key.Key_Left, Qt.Key.Key_Down, Qt.Key.Key_Right):
+            direction = -1 if a0.key() in (Qt.Key.Key_Up, Qt.Key.Key_Left) else 1
+            current = self._value if self._value is not None else 1
+            self._select(max(0, min(2, current + direction)))
+            a0.accept()
+        else:
+            super().keyPressEvent(a0)
+
+    def _select(self, value):
+        if value != self._value:
+            self.value = value
+            self.valueChanged.emit(value)
 
 
 class PedalWidget(QWidget):
@@ -28,7 +110,8 @@ class PedalWidget(QWidget):
         self.db = db
         self._pixmap = None
         self._knobs = {}
-        self.setFixedSize(DISP_W, DISP_H)
+        self._switches = {}
+        self.setFixedSize(EQ_DISP_W if slot.model == "eq.EQ" else DISP_W, DISP_H)
         self._load_pixmap()
         self._build_knobs()
 
@@ -45,15 +128,33 @@ class PedalWidget(QWidget):
             if fp.exists():
                 pm = QPixmap(str(fp))
                 if not pm.isNull():
-                    self._pixmap = pm.scaled(
-                        DISP_W, DISP_H, Qt.KeepAspectRatio, Qt.SmoothTransformation
-                    )
+                    pm = pm.scaled(DISP_W, DISP_H, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    if self.slot.model == "eq.EQ":
+                        self._pixmap = QPixmap(self.width(), DISP_H)
+                        self._pixmap.fill(Qt.GlobalColor.transparent)
+                        painter = QPainter(self._pixmap)
+                        extra = (self.width() - DISP_W) // 2
+                        for left, right, dest_left, dest_right in (
+                            (0, 30, 0, 30),
+                            (30, 58, 30, 58 + extra),
+                            (58, 122, 58 + extra, 122 + extra),
+                            (122, 150, 122 + extra, 150 + 2 * extra),
+                            (150, DISP_W, 150 + 2 * extra, self.width()),
+                        ):
+                            painter.drawPixmap(QRect(dest_left, 0, dest_right - dest_left, DISP_H),
+                                               pm, QRect(left, 0, right - left, DISP_H))
+                        painter.end()
+                    else:
+                        self._pixmap = pm
                 return
 
     def _build_knobs(self):
         addr = self.slot.model.split(".")[-1] if "." in self.slot.model else self.slot.model
         effect = self.db.by_address(addr)
         if not effect:
+            return
+        if self.slot.model == "eq.EQ":
+            self._build_eq_controls(effect)
             return
         # parámetros del efecto (excluyendo ENABLE)
         params = visible_pedal_params(effect)
@@ -87,6 +188,41 @@ class PedalWidget(QWidget):
             self._knobs[name] = knob
             knob.show()
 
+    def _build_eq_controls(self, effect):
+        params = {p["address"]: p for p in effect.get("params", [])}
+        bands = (
+            ("LOW LEVL", "LOW FREQ", "LOW BW"),
+            ("MID LEVL", "MID FREQ", "MID BW"),
+            ("HIGHLEVL", "HIGHFREQ", "HIGH BW"),
+        )
+        for x, (level, frequency, bandwidth) in zip((55, 141, 227), bands):
+            for y, name in ((27, level), (88, frequency)):
+                p = params[name]
+                knob = Knob(name, p["min"], p["max"],
+                            int(self.slot.params.get(name, p["default"])),
+                            p.get("unit", ""), size=40, parent=self)
+                knob.move(x - knob.width() // 2, y)
+                knob.valueChanged.connect(
+                    lambda value, n=name: self.param_changed.emit(self.index, n, value)
+                )
+                self._knobs[name] = knob
+                knob.show()
+            switch = BandwidthSwitch(bandwidth, self.slot.params.get(bandwidth), self)
+            if bandwidth not in self.slot.params:
+                switch.setEnabled(False)
+                switch.setToolTip(f"{bandwidth}: parameter unavailable")
+            switch.move(x - switch.width() // 2, 149)
+            switch.valueChanged.connect(
+                lambda value, n=bandwidth: self.param_changed.emit(self.index, n, value)
+            )
+            self._switches[bandwidth] = switch
+            switch.show()
+
+    def update_param(self, name, value):
+        control = self._knobs.get(name) or self._switches.get(name)
+        if control is not None:
+            control.value = int(value)
+
     # ------------------------------------------------------------ painting
     def paintEvent(self, e):
         super().paintEvent(e)
@@ -94,7 +230,7 @@ class PedalWidget(QWidget):
         p.setRenderHint(QPainter.Antialiasing)
         # press offset: pedal dips down a few px while pressed
         dy = 6 if getattr(self, "_pressed", False) else 0
-        r = QRect(0, dy, DISP_W, DISP_H)
+        r = QRect(0, dy, self.width(), DISP_H)
         if self._pixmap:
             p.drawPixmap(r, self._pixmap)
         else:
@@ -107,9 +243,9 @@ class PedalWidget(QWidget):
         if enabled:
             p.setPen(QPen(QColor(255, 176, 0, 160), 2))
             p.setBrush(Qt.NoBrush)
-            p.drawRoundedRect(1 + dy // 2, 1 + dy, DISP_W - 3, DISP_H - 3, 12, 12)
+            p.drawRoundedRect(1 + dy // 2, 1 + dy, self.width() - 3, DISP_H - 3, 12, 12)
         # ON/OFF LED + footswitch (bottom-right, part of the animated press)
-        lx = DISP_W - 30
+        lx = self.width() - 30
         ly = DISP_H - 46 + dy
         if enabled:
             p.setPen(Qt.NoPen)

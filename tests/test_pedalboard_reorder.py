@@ -96,6 +96,20 @@ class PedalboardReorderTests(unittest.TestCase):
         event.ignore.assert_called_once()
         self.assertIsNone(self.board._pending_reorder)
 
+    def test_wide_eq_pedal_is_a_single_drop_target(self):
+        eq = FxSlot.from_json(5, self.db.build_slot_data("EQ"))
+        self.board.rebuild({3: FxSlot(3, "amp.57 CHAMP"), 5: eq}, self.db)
+        self.app.processEvents()
+        widget = self.board._slot_widgets[5]
+        self.assertGreater(widget.width(), 180)
+        for x in (0, widget.width() // 2, widget.width() - 1):
+            position = widget.mapTo(self.board.container, widget.rect().topLeft()).x() + x
+            self.assertEqual(self.board._slot_at_x(position), 5)
+        event = self.drop_event(3, 5)
+        self.board.dropEvent(event)
+        event.acceptProposedAction.assert_called_once()
+        self.assertEqual(self.board._pending_reorder, (3, 5))
+
 
 if __name__ == "__main__":
     unittest.main()

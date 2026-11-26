@@ -16,7 +16,7 @@ from nexus.runtime import img_path
 from nexus.ui.amp_cab_block import AMP_DISP_W, AmpView
 from nexus.ui.eq_display import eq_bands, eq_response
 from nexus.ui.knob import Knob
-from nexus.ui.pedal_widget import DISP_H, DISP_W, SRC_H, SRC_W, PedalWidget
+from nexus.ui.pedal_widget import DISP_H, DISP_W, EQ_DISP_W, SRC_H, SRC_W, PedalWidget
 
 
 class KnobDrawingTest(unittest.TestCase):
@@ -65,8 +65,7 @@ class KnobDrawingTest(unittest.TestCase):
     def test_pedal_labels_fit_without_changing_knob_centers(self):
         db = EffectsDB()
         metrics = QFontMetrics(QFont("Sans", 8, QFont.Bold))
-        for address, names in (("EQ", ("LOW LEVL", "LOW FREQ")),
-                               ("LEX HALL", ("PREDELAY", "DECAY"))):
+        for address, names in (("LEX HALL", ("PREDELAY", "DECAY")),):
             with self.subTest(address=address):
                 slot = FxSlot.from_json(0, db.build_slot_data(address))
                 pedal = PedalWidget(0, slot, db)
@@ -225,10 +224,59 @@ class KnobDrawingTest(unittest.TestCase):
         slot = FxSlot.from_json(4, db.build_slot_data("EQ"))
         pedal = PedalWidget(4, slot, db)
         for name, maximum in (("LOW LEVL", 24), ("LOW FREQ", 37),
-                              ("LOW BW", 2), ("MID LEVL", 24),
-                              ("MID FREQ", 45), ("MID BW", 2)):
+                              ("MID LEVL", 24), ("MID FREQ", 45),
+                              ("HIGHLEVL", 24), ("HIGHFREQ", 24)):
             knob = pedal._knobs[name]
             self.assertEqual((knob.min_val, knob.max_val), (0, maximum))
+
+    def test_eq_pedal_displays_all_three_bands_without_overlaps(self):
+        db = EffectsDB()
+        pedal = PedalWidget(4, FxSlot.from_json(4, db.build_slot_data("EQ")), db)
+        self.assertEqual(pedal.width(), EQ_DISP_W)
+        self.assertEqual(set(pedal._knobs),
+                         {"LOW LEVL", "LOW FREQ", "MID LEVL", "MID FREQ",
+                          "HIGHLEVL", "HIGHFREQ"})
+        self.assertEqual(set(pedal._switches), {"LOW BW", "MID BW", "HIGH BW"})
+        previous = None
+        for level, frequency, bandwidth in (
+                ("LOW LEVL", "LOW FREQ", "LOW BW"),
+                ("MID LEVL", "MID FREQ", "MID BW"),
+                ("HIGHLEVL", "HIGHFREQ", "HIGH BW")):
+            controls = [pedal._knobs[level], pedal._knobs[frequency],
+                        pedal._switches[bandwidth]]
+            self.assertEqual(len({control.geometry().center().x() for control in controls}), 1)
+            self.assertLess(controls[0].geometry().bottom(), controls[1].geometry().top())
+            self.assertLess(controls[1].geometry().bottom(), controls[2].geometry().top())
+            self.assertLess(controls[2].geometry().bottom(), int(256 * DISP_H / SRC_H))
+            if previous is not None:
+                self.assertLess(previous.geometry().right(), controls[0].geometry().left())
+            previous = controls[0]
+            for control in controls:
+                self.assertTrue(pedal.rect().contains(control.geometry()))
+
+    def test_eq_bandwidth_switch_is_discrete_and_does_not_toggle_pedal(self):
+        db = EffectsDB()
+        slot = FxSlot.from_json(4, db.build_slot_data("EQ"))
+        pedal = PedalWidget(4, slot, db)
+        changes, toggles = [], []
+        pedal.param_changed.connect(lambda *args: changes.append(args))
+        pedal.enable_toggled.connect(lambda *args: toggles.append(args))
+        pedal.show()
+        self.app.processEvents()
+        for name, switch in pedal._switches.items():
+            for y, expected in ((4, 0), (16, 1), (28, 2)):
+                QTest.mouseClick(switch, Qt.LeftButton, pos=QPoint(30, y))
+                self.assertEqual(switch.value, expected)
+                self.assertEqual(changes[-1], (4, name, expected))
+        switch = pedal._switches["HIGH BW"]
+        QTest.keyClick(switch, Qt.Key_Up)
+        self.assertEqual(changes[-1], (4, "HIGH BW", 1))
+        self.assertEqual(toggles, [])
+        pedal.update_param("HIGH BW", 9)
+        self.assertIsNone(switch.value)
+        self.assertEqual(switch.accessibleDescription(), "Unknown")
+        self.assertEqual(changes[-1], (4, "HIGH BW", 1))
+        pedal.close()
 
 
 if __name__ == "__main__":

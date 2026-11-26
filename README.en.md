@@ -23,6 +23,8 @@ project and making this fork possible.
 
 - Edit effect parameters, select models and cabinets, toggle effects, and
   reorder the pedalboard.
+- Edit all three EQ bands on a wider pedal, with Wide/Medium/Narrow bandwidth
+  switches.
 - Browse User, Factory, and bundled Library presets; import and export presets;
   and back up or restore user presets as JSON.
 - Configure stomp, expression, and LFO assignments.

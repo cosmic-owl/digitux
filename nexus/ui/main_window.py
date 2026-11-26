@@ -496,8 +496,8 @@ class MainWindow(QMainWindow):
             self.amp_block.update_param(name, value)
         else:
             pedal = self.pedalboard.pedals.get(slot)
-            if pedal and name in pedal._knobs:
-                pedal._knobs[name].value = int(value)
+            if pedal:
+                pedal.update_param(name, value)
 
     def _display_wah_param(self, name, value):
         widget = (self.control_panel.wah_level_spin if name == "WAH LEVL"

@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt5.QtWidgets import QApplication, QPushButton, QStyle, QStyleOptionComboBox
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import QPoint, Qt
 from PyQt5.QtTest import QTest
 
 from nexus.model import FxSlot, Preset
@@ -168,6 +168,33 @@ class SyncUITest(unittest.TestCase):
         del updated.slots[5]
         w._display_preset(updated)
         self.assertIsNone(display.slot)
+
+    def test_eq_bandwidth_and_high_controls_sync_without_feedback(self):
+        w = self.window
+        pedal = w.pedalboard.pedals[5]
+        switch = pedal._switches["HIGH BW"]
+        self.assertEqual(switch.value, 1)
+        with patch.object(w.amp_block.amp_view.eq_display, "update") as redraw:
+            QTest.mouseClick(switch, Qt.LeftButton, pos=QPoint(30, 28))
+            redraw.assert_called_once()
+        self.device.set_param.assert_called_once_with(5, "HIGH BW", 2, flat=True)
+        self.assertEqual(w.preset.slots[5].params["HIGH BW"], 2)
+        self.device.reset_mock()
+        pedal._knobs["HIGHFREQ"].valueChanged.emit(14)
+        self.device.set_param.assert_called_once_with(5, "HIGHFREQ", 14, flat=True)
+        self.device.reset_mock()
+        w._on_notif(["np", 1, "preset/fxc/5/HIGH BW", 0])
+        w._on_notif(["np", 2, "preset/fxc/5/HIGHLEVL", 18])
+        self.assertEqual(switch.value, 0)
+        self.assertEqual(pedal._knobs["HIGHLEVL"].value, 18)
+        updated = fixture_preset()
+        updated.slots[5].params["HIGH BW"] = 2
+        updated.slots[5].params["HIGHFREQ"] = 14
+        w._apply_snapshot(updated)
+        self.assertEqual(switch.value, 2)
+        self.assertEqual(pedal._knobs["HIGHFREQ"].value, 14)
+        self.assertIs(w.amp_block.amp_view.eq_display.slot, w.preset.slots[5])
+        self.device.set_param.assert_not_called()
 
     def test_structural_notifications_coalesce_and_stale_snapshots_are_rejected(self):
         w = self.window
