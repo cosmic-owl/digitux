@@ -95,7 +95,7 @@ class AmpView(QWidget):
                         plist.get("unit", ""), size=kw,
                         knob_type=plist.get("knobType"), parent=self)
             # center the knob widget over the source perilla point
-            px = int(kx * sx) - kw // 2
+            px = int(kx * sx) - knob.width() // 2
             py = int(ky * sy) - kw // 2
             knob.move(px, py)
             knob.valueChanged.connect(

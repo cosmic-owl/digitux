@@ -8,6 +8,7 @@ Arte 100% propio.
 import json
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
+from nexus.effects_db import visible_pedal_params
 
 SRC = Path(__file__).parent / "nexus" / "rp360_effects.json"
 OUT = Path(__file__).parent / "nexus" / "assets" / "img"
@@ -100,7 +101,7 @@ def draw_knobs(d, cx, cy, r, n, label_font, labels=None):
             d.text((x - (b[2] - b[0]) / 2, y + r + 4), labels[i], font=label_font, fill=(225, 225, 225))
 
 
-def make_pedal(name, cat, sub):
+def make_pedal(name, cat, sub, control_count):
     color = MOD_COLOR.get(sub, CAT_COLOR[cat]) if cat == "Mod" else CAT_COLOR.get(cat, (120, 120, 120))
     im = Image.new("RGBA", (PEDAL_W, PEDAL_H), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
@@ -110,14 +111,15 @@ def make_pedal(name, cat, sub):
     d.rounded_rectangle([20, 16, PEDAL_W - 20, PEDAL_H - 24], radius=22,
                         outline=darker(color), width=8)
     # placa de controles OSCURA (zona de perillas) para que las etiquetas blancas resalten
-    d.rounded_rectangle([30, 34, PEDAL_W - 30, 172], radius=12,
+    panel_bottom = 254 if control_count >= 5 else 172
+    d.rounded_rectangle([30, 34, PEDAL_W - 30, panel_bottom], radius=12,
                         fill=(42, 42, 46), outline=(90, 90, 95), width=2)
     # nombre en la zona inferior del chasis, hasta 2 líneas
     f_name = font(FONT_COND_BOLD, 24)
     max_w = PEDAL_W - 60
     # partir en líneas que quepan
     lines = wrap_text(d, name, f_name, max_w, max_lines=2)
-    y0 = 200
+    y0 = 256 if control_count >= 5 else 200
     lh = 26
     for i, line in enumerate(lines):
         bbox = d.textbbox((0, 0), line, font=f_name)
@@ -232,7 +234,7 @@ def main():
         else:
             if cat == "Other":
                 name = "Volume"
-            im = make_pedal(name, cat, e.get("subcategory"))
+            im = make_pedal(name, cat, e.get("subcategory"), len(visible_pedal_params(e)))
             im.save(out_pedals / base)
         n += 1
 

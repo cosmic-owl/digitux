@@ -23,7 +23,7 @@ class Knob(QWidget):
         self.max_val = max_val
         self._value = value
         self.unit = unit
-        self.setFixedSize(size, size + 20)
+        self.setFixedSize(max(size, 78), size + 20)
         self.setMouseTracking(True)
         self._drag_start = None
         self._drag_value = value

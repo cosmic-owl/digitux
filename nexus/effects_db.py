@@ -36,6 +36,12 @@ SLOT_CATEGORY = {
 _FLEXIBLE = {"Other": (6, 7), "Mod": (6, 7)}
 
 
+def visible_pedal_params(effect: dict) -> list[dict]:
+    """Return the parameters displayed as pedal knobs, in display order."""
+    return [p for p in effect.get("params", [])
+            if p["address"] != "ENABLE" and p.get("type", "Normal") != "Special"][:6]
+
+
 def natural_positions(category: str) -> list[int]:
     """Return the allowed slot index(es) for a category in the default chain."""
     if category in _FLEXIBLE:

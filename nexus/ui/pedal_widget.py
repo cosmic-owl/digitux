@@ -4,6 +4,7 @@ from PyQt5.QtCore import Qt, pyqtSignal, QRect
 from PyQt5.QtGui import QPixmap, QPainter, QColor, QPen, QFont
 
 from .knob import Knob
+from ..effects_db import visible_pedal_params
 from ..runtime import img_path
 
 SRC_W = 220.0
@@ -55,30 +56,29 @@ class PedalWidget(QWidget):
         if not effect:
             return
         # parámetros del efecto (excluyendo ENABLE)
-        params = [p for p in effect.get("params", []) if p["address"] != "ENABLE"
-                  and p.get("type", "Normal") != "Special"]
+        params = visible_pedal_params(effect)
         if not params:
             return
         # grilla fija de hasta 6 perillas (2 columnas x 3 filas), en coords fuente 220x364
-        # dentro de la placa (y 34..172)
+        # dentro de la placa
         sx = DISP_W / SRC_W
         sy = DISP_H / SRC_H
         kw = 40
-        n = len(params[:6])
+        n = len(params)
         if n == 1:
             # una sola perilla (p.ej. Volume) -> centrada
             positions = [(110, 96)]   # centro de la placa, en coords fuente
         else:
             grid = [(60, 60), (160, 60), (60, 130), (160, 130), (60, 200), (160, 200)]
             positions = grid[:n]
-        for i, plist in enumerate(params[:6]):
+        for i, plist in enumerate(params):
             name = plist["address"]
             kx, ky = positions[i]
             knob = Knob(name, plist.get("min", 0), plist.get("max", 99),
                         int(self.slot.params.get(name, plist.get("default", 0))),
                         plist.get("unit", ""), size=kw,
                         knob_type=plist.get("knobType"), parent=self)
-            px = int(kx * sx) - kw // 2
+            px = int(kx * sx) - knob.width() // 2
             py = int(ky * sy) - kw // 2
             knob.move(px, py)
             knob.valueChanged.connect(
