@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, pyqtSignal, QRect
 from PyQt5.QtGui import QPixmap, QPainter, QColor, QFont
 
+from .eq_display import EqDisplay
 from .knob import Knob
 from ..runtime import img_path
 
@@ -36,6 +37,8 @@ class AmpView(QWidget):
         self.setFixedSize(AMP_DISP_W, AMP_DISP_H)
         self.setToolTip("Clic en la placa para cambiar amplificador")
         self._load_bits()
+        self.eq_display = EqDisplay(self)
+        self.eq_display.move(490, 75)
 
     def _load_bits(self):
         base = img_path("amps")
@@ -122,33 +125,34 @@ class AmpView(QWidget):
 
         # LED + lever baked into the amp's colored area (right, over the chassis)
         enabled = self.slot is None or bool(self.slot.enable)
-        sx = AMP_DISP_W / 572.0
         sy = AMP_DISP_H / 194.0
-        col_x = int(455 * sx)   # free column to the right of the plate
+        col_x = self._switch_rect().center().x()
         # LED
         led = self._led_on if enabled else self._led_off
         if led is not None:
-            p.drawPixmap(col_x, int(30 * sy),
-                         led.scaled(40, 40, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            pm = led.scaled(40, 40, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            p.drawPixmap(col_x - pm.width() // 2, int(30 * sy), pm)
         # ON
         p.setPen(QColor(255, 120, 120) if enabled else QColor(90, 90, 90))
         p.setFont(QFont("Sans", 8, QFont.Bold))
-        p.drawText(QRect(col_x - 6, int(72 * sy), 78, 12), Qt.AlignCenter, "ON")
+        p.drawText(QRect(col_x - 35, int(72 * sy), 71, 12), Qt.AlignCenter, "ON")
         # lever
         sw = self._sw_on if enabled else self._sw_off
         if sw is not None:
-            p.drawPixmap(col_x, int(88 * sy),
-                         sw.scaled(52, 52, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            pm = sw.scaled(52, 52, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            p.drawPixmap(col_x - pm.width() // 2, int(88 * sy), pm)
         # Bypass
         p.setPen(QColor(200, 200, 200) if enabled else QColor(255, 120, 120))
-        p.drawText(QRect(col_x - 6, int(146 * sy), 78, 14), Qt.AlignCenter, "Bypass")
+        p.drawText(QRect(col_x - 35, int(146 * sy), 71, 14), Qt.AlignCenter, "Bypass")
         p.end()
 
     def _switch_rect(self):
         sx = AMP_DISP_W / 572.0
         sy = AMP_DISP_H / 194.0
-        col_x = int(455 * sx)
-        return QRect(col_x, int(70 * sy), 66, int(90 * sy))
+        col_x = int(520 * sx)
+        top = int(72 * sy)
+        bottom = int(146 * sy) + 14
+        return QRect(col_x - 35, top, 71, bottom - top)
 
     def mousePressEvent(self, e):
         if e.button() == Qt.LeftButton and self.slot is not None:

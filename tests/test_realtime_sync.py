@@ -146,6 +146,29 @@ class SyncUITest(unittest.TestCase):
         self.device.set_param.assert_not_called()
         self.device.set_preset_level.assert_not_called()
 
+    def test_eq_display_tracks_edits_notifications_snapshots_and_preset_changes(self):
+        w = self.window
+        display = w.amp_block.amp_view.eq_display
+        self.assertIs(display.slot, w.preset.slots[5])
+        w._set_param(5, "MID LEVL", 15)
+        self.assertEqual(display.slot.params["MID LEVL"], 15)
+        self.device.set_param.assert_called_once_with(5, "MID LEVL", 15, flat=True)
+        self.device.reset_mock()
+        w._on_notif(["np", 1, "preset/fxc/5/ENABLE", 1])
+        w._on_notif(["np", 2, "preset/fxc/5/HIGHFREQ", 14])
+        self.assertTrue(display.slot.enable)
+        self.assertEqual(display.slot.params["HIGHFREQ"], 14)
+        updated = fixture_preset()
+        updated.slots[5].enable = False
+        updated.slots[5].params["LOW LEVL"] = 18
+        w._apply_snapshot(updated)
+        self.assertFalse(display.slot.enable)
+        self.assertEqual(display.slot.params["LOW LEVL"], 18)
+        self.device.assert_not_called()
+        del updated.slots[5]
+        w._display_preset(updated)
+        self.assertIsNone(display.slot)
+
     def test_structural_notifications_coalesce_and_stale_snapshots_are_rejected(self):
         w = self.window
         w._on_notif(["cm", 0])

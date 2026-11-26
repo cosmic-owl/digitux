@@ -14,6 +14,7 @@ from nexus.effects_db import EffectsDB, visible_pedal_params
 from nexus.model import FxSlot
 from nexus.runtime import img_path
 from nexus.ui.amp_cab_block import AMP_DISP_W, AmpView
+from nexus.ui.eq_display import eq_bands, eq_response
 from nexus.ui.knob import Knob
 from nexus.ui.pedal_widget import DISP_H, DISP_W, SRC_H, SRC_W, PedalWidget
 
@@ -122,6 +123,112 @@ class KnobDrawingTest(unittest.TestCase):
         QTest.mouseRelease(first, Qt.LeftButton, pos=end)
         self.assertTrue(changes)
         view.close()
+
+    def test_amplifier_indicator_switch_and_labels_share_a_column(self):
+        db = EffectsDB()
+        view = AmpView(db)
+        view.set_slot(FxSlot.from_json(3, db.build_slot_data("DIGBRGHT")))
+        for enabled in (True, False):
+            with self.subTest(enabled=enabled):
+                view.slot.enable = enabled
+                with patch("nexus.ui.amp_cab_block.QPainter") as painter:
+                    view.paintEvent(None)
+                draw = painter.return_value
+                indicator, switch = (call.args for call in draw.drawPixmap.call_args_list[-2:])
+                center = view._switch_rect().center().x()
+                for x, _, pixmap in (indicator, switch):
+                    self.assertLessEqual(abs(x + pixmap.width() / 2 - center), 0.5)
+                self.assertGreater(indicator[0], int(480 * AMP_DISP_W / 572))
+                for call in draw.drawText.call_args_list:
+                    rect, _, text = call.args
+                    if text in ("ON", "Bypass"):
+                        self.assertEqual(rect.center().x(), center)
+                        self.assertTrue(view._switch_rect().contains(rect.center()))
+                self.assertTrue(view._switch_rect().contains(
+                    QPoint(switch[0] + switch[2].width() // 2,
+                           switch[1] + switch[2].height() // 2)))
+
+    def test_amplifier_switch_hit_area_follows_controls(self):
+        db = EffectsDB()
+        view = AmpView(db)
+        view.set_slot(FxSlot.from_json(3, db.build_slot_data("DIGBRGHT")))
+        toggles, changes = [], []
+        view.bypass_toggled.connect(lambda slot, bypass: toggles.append((slot, bypass)))
+        view.change_requested.connect(changes.append)
+        view.show()
+        self.app.processEvents()
+        QTest.mouseClick(view, Qt.LeftButton, pos=view._switch_rect().center())
+        self.assertEqual(toggles, [(3, bool(view.slot.enable))])
+        QTest.mouseClick(view, Qt.LeftButton, pos=QPoint(int(450 * AMP_DISP_W / 572), 40))
+        self.assertEqual(changes, [3])
+        self.assertEqual(len(toggles), 1)
+        view.slot.enable = False
+        QTest.mouseClick(view, Qt.LeftButton, pos=view._switch_rect().center())
+        self.assertEqual(toggles[-1], (3, False))
+        view.close()
+
+    def test_eq_estimate_uses_device_values_and_rejects_unknown_values(self):
+        slot = FxSlot(4, "eq.EQ", {
+            "LOW LEVL": 12, "LOW FREQ": 9, "LOW BW": 1,
+            "MID LEVL": 15, "MID FREQ": 45, "MID BW": 1,
+            "HIGHLEVL": 3, "HIGHFREQ": 14, "HIGH BW": 0,
+        })
+        bands = eq_bands(slot)
+        self.assertEqual([(frequency, gain) for frequency, gain, _ in bands],
+                         [(100, 0), (4000, 3), (4500, -9)])
+        self.assertLess(eq_response(4500, bands), 0)
+        flat = [(frequency, 0, width) for frequency, _, width in bands]
+        self.assertEqual(eq_response(1000, flat), 0)
+        slot.params["HIGHFREQ"] = 25
+        self.assertIsNone(eq_bands(slot))
+        del slot.params["HIGHFREQ"]
+        self.assertIsNone(eq_bands(slot))
+
+    def test_eq_display_fits_and_does_not_open_amp_picker(self):
+        view = AmpView(EffectsDB())
+        view.set_slot(FxSlot.from_json(3, EffectsDB().build_slot_data("DIGBRGHT")))
+        eq = view.eq_display
+        self.assertLess(view._knobs[-1].geometry().right(), eq.geometry().left())
+        self.assertLess(eq.geometry().right(), view._switch_rect().left())
+        changes = []
+        view.change_requested.connect(changes.append)
+        view.show()
+        self.app.processEvents()
+        QTest.mouseClick(eq, Qt.LeftButton)
+        self.assertEqual(changes, [])
+        view.close()
+
+    def test_eq_display_renders_changes_and_bypass(self):
+        db = EffectsDB()
+        slot = FxSlot.from_json(4, db.build_slot_data("EQ"))
+        slot.enable = True
+        view = AmpView(db)
+        display = view.eq_display
+        display.set_slot(slot)
+        view.show()
+        self.app.processEvents()
+        flat = display.grab().toImage()
+        slot.params["LOW LEVL"] = 20
+        display.update()
+        changed = display.grab().toImage()
+        self.assertNotEqual(flat, changed)
+        slot.enable = False
+        display.update()
+        bypassed = display.grab().toImage()
+        self.assertNotEqual(changed, bypassed)
+        display.set_slot(None)
+        self.assertNotEqual(bypassed, display.grab().toImage())
+        view.close()
+
+    def test_eq_knobs_use_encoded_parameter_ranges(self):
+        db = EffectsDB()
+        slot = FxSlot.from_json(4, db.build_slot_data("EQ"))
+        pedal = PedalWidget(4, slot, db)
+        for name, maximum in (("LOW LEVL", 24), ("LOW FREQ", 37),
+                              ("LOW BW", 2), ("MID LEVL", 24),
+                              ("MID FREQ", 45), ("MID BW", 2)):
+            knob = pedal._knobs[name]
+            self.assertEqual((knob.min_val, knob.max_val), (0, maximum))
 
 
 if __name__ == "__main__":

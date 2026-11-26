@@ -454,6 +454,8 @@ class MainWindow(QMainWindow):
         self._display_level(p.prs_levl)
         amp_slot = next((s for s in p.slots.values() if s.category == "amp"), None)
         self.amp_block.set_amp_slot(amp_slot)
+        eq_slot = next((s for s in p.slots.values() if s.category == "eq"), None)
+        self.amp_block.amp_view.eq_display.set_slot(eq_slot)
         self.pedalboard.rebuild(p.slots, self.db)
         self.control_panel.set_effect_slots(p.slots)
         lfo = p.ctrls.get("lfo1")
@@ -478,12 +480,16 @@ class MainWindow(QMainWindow):
         s = self.preset.slots[slot]
         if name == "ENABLE":
             s.enable = None if value is None else bool(value)
+            if s.category == "eq":
+                self.amp_block.amp_view.eq_display.update()
             if s.category == "amp":
                 self.amp_block.amp_view.update()
             elif slot in self.pedalboard.pedals:
                 self.pedalboard.pedals[slot].update()
             return
         s.params[name] = value
+        if s.category == "eq":
+            self.amp_block.amp_view.eq_display.update()
         if s.category == "wah" and name in ("WAH LEVL", "PEDAL"):
             self._display_wah_param(name, value)
         if s.category == "amp":
