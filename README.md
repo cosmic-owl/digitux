@@ -1,108 +1,129 @@
-# DigiTux v2
+# DigiTux: un fork personal
+
+Español | [English](README.en.md)
 
 ![DigiTux](digitux-banner.png)
 
-Editor para **DigiTech RP360 / RP360XP** en Linux, con **gráficos propios
-caricaturizados** (libres de material con copyright).
+Este es mi fork de **DigiTux**, un editor libre para **DigiTech RP360 y
+RP360XP**. Mi objetivo es alcanzar la paridad de funciones con DigiTech Nexus,
+recuperar algunos flujos de gestión de presets de X-Edit y añadir funciones
+que me hubiera gustado encontrar en Nexus y DigiTux.
 
-![Captura de pantalla](screenshot.png)
+No pretendo competir con el DigiTux original. Empecé este fork como una forma
+personal de añadir las funciones que quería ver y estaré encantado de proponer
+estos cambios al proyecto original.
 
-Esta es la versión apta para publicar en GitHub: el backend y las reglas del
-dispositivo se deducen por ingeniería inversa (protocolo serie JSON), y todas las
-imágenes son **arte derivado original** en estilo *cartoon plano* (contorno +
-colores planos), no las fotos oficiales.
+**Créditos y agradecimientos a [IlicaJ](https://github.com/IlicaJ)**, creador
+del [DigiTux original](https://github.com/IlicaJ/digitux), por desarrollar el
+proyecto y hacer posible este fork.
 
-## De dónde viene
+![Captura de pantalla de DigiTux](screenshot.png)
 
-La estructura del efecto/cadena y el protocolo se dedujeron estudiando el
-comportamiento del hardware (dumps serie) y el formato de preset. Las imágenes
-originales no se incluyen; en su lugar se generaron **caricaturas** que conservan
-tamaño y silueta de cada pedal/amplificador/caja, reduciendo las fotos a unos
-pocos colores planos con contorno.
+## Funciones actuales
 
-## Características
+- Editar parámetros, seleccionar modelos y gabinetes, activar o desactivar
+  efectos y reordenar la cadena.
+- Explorar los presets User, Factory y Library incluidos; importar y exportar
+  presets; y respaldar o restaurar presets de usuario en JSON.
+- Configurar asignaciones de stomp, expresión y LFO.
+- Copiar un preset User guardado al portapapeles interno. La acción de pegar
+  aún no está implementada.
+- Restablecer una posición User previa confirmación. Esto la **sobrescribe**
+  con un preset predeterminado con nombre, amplificador y gabinete; la
+  posición no queda vacía.
+- Sincronizar los cambios compatibles de parámetros y presets con el pedal
+  conectado. Las notificaciones actualizan la interfaz y una lectura de
+  reconciliación cada cinco segundos recupera cambios no recibidos. Los
+  comandos serie se serializan y los cambios de parámetros más recientes se
+  conservan al completar una lectura.
 
-- Pedales con knobs en coordenadas exactas (filmstrips de 99 frames).
-- Amplificador con knobs dentro, LED + interruptor de palanca ON/Bypass, cabinet.
-- Pedalboard con 10 posiciones de cadena, huecos vacíos, amp como pin arrastrable
-  y **drag-and-drop para reordenar**.
-- Selector gráfico contextual de efectos (una categoría por posición).
-- Panel de control: Stompbox, Expression Link, LFO Link, Wah Settings.
-- Preset Level, menú (Backup/Restore/Import/Export/Store New/Quick Store/Delete/Copy).
-- Pestañas User / Factory / Library (99 presets).
-- Clic derecho en un preset User para copiarlo al portapapeles interno o
-  restablecerlo previa confirmación. Al eliminarlo se sobrescribe la posición
-  con un preset llamado «Preset N» (N es el número de la posición), sin pedales
-  y con el primer amplificador y gabinete; la posición no queda vacía. Todavía
-  no hay una acción de pegar.
-- Sincronización en vivo: los cambios notificados por el RP360 actualizan los
-  controles sin reenviarlos al dispositivo. Una lectura de reconciliación cada
-  cinco segundos recupera cambios que no hayan llegado como notificación;
-  las lecturas y escrituras se serializan en el protocolo. Los cambios de
-  parámetros ocurridos durante una lectura se conservan al aplicar el resultado.
+La aplicación se desarrolló originalmente para Linux. El comportamiento del
+hardware y del audio puede variar según el sistema y el dispositivo; la
+sincronización en tiempo real no garantiza la ausencia de interrupciones de
+audio ni de errores de comunicación.
 
 ## Instalación
 
-Elige el formato que te convenga (release en [Releases](https://github.com/IlicaJ/digitux/releases)):
-
-| Formato | Archivo | Para quién |
-|---|---|---|
-| **Binario** | `digitux-x86_64` | Linux x86_64 sin instalar nada (ejecutar directamente) |
-| **AppImage** | `DigiTux-x86_64.AppImage` | Archivo único portable |
-| **.deb** | `digitux_0.2.0-1_all.deb` | Ubuntu / Debian / Mint (`sudo apt install ./digitux_...deb`) |
-| **pip** | `pip install .` | Desarrolladores / usuarios de pip |
-
-Binario y AppImage: `chmod +x` y ejecutar. El `.deb` instala la regla udev
-(`/etc/udev/rules.d/99-rp360.rules`) y el acceso directo al menú automáticamente.
+Desde el repositorio, con Python 3.9 o posterior:
 
 ```bash
-# vía pip (desde el repo)
 pip install .
 digitux
+```
 
-# o desde el código fuente
-pip install pyserial PyQt5
+También puedes instalar `pyserial` y `PyQt5` y ejecutar desde la raíz del
+repositorio:
+
+```bash
 python3 -m nexus.ui.main
-
-# o con el lanzador incluido
+# o
 ./run.sh
 ```
 
-Requiere el RP360 conectado (`1210:0032` / `/dev/ttyACM0`) y una regla udev que
-dé acceso al puerto serie (p. ej. `/etc/udev/rules.d/99-rp360.rules`).
+Conecta el RP360/RP360XP mediante USB. En Linux, el acceso al puerto serie
+puede requerir una regla udev. La regla incluida en `packaging/99-rp360.rules`
+y la configuración de empaquetado permiten el acceso sin root; revisa la regla
+antes de instalarla.
 
-```udev
-SUBSYSTEM=="tty", ATTRS{idVendor}=="1210", ATTRS{idProduct}=="0032", MODE="0666"
-```
+El repositorio incluye scripts para generar binarios Linux, AppImage y `.deb`.
+Las [versiones publicadas del proyecto original](https://github.com/IlicaJ/digitux/releases)
+son versiones del proyecto original y pueden no incluir los cambios de este
+fork. Publicar instaladores para este fork forma parte de los planes siguientes.
 
-## Estructura
+## Próximos pasos
 
-```
-nexus/
-  transport.py  protocol.py  device.py  model.py  effects_db.py   # backend
-  rp360_effects.json                                              # DB de efectos
-  assets/img/  (pedals, amps, cabs, filmstrips, pedalboard)       # arte generado
-  ui/  (main_window, pedal_widget, pedalboard_view, amp_cab_block,
-        effect_picker, control_panel, knob, main)
-data/nexus_factory_presets.json
-generate_assets.py  # regenrador de los gráficos (PIL)
-```
+Estos son objetivos, no promesas ni un calendario de lanzamientos.
 
-## Apoyar el proyecto
+### Paridad con Nexus y empaquetado
 
-[![Buy Me a Coffee](https://img.buymeacoffee.com/button-api/?text=Invítame%20un%20café&emoji=☕&slug=lica&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff)](https://buymeacoffee.com/lica)
+- Publicar un `.deb` para Debian/Ubuntu de este fork con configuración udev y
+  un `.dmg` autónomo para macOS en Apple Silicon e Intel.
+- Exponer los ajustes globales y los modos de tres footswitches, la compensación
+  de salida (Amp/Mixer) y la calibración del pedal de expresión.
+- Añadir tap tempo, visualización de BPM y sincronización con subdivisiones
+  rítmicas de delay y LFO.
+- Seguir mejorando y validando la sincronización bidireccional con el hardware.
 
-## Licencia
+### Gestión de presets
 
-GPL-3.0 — ver el archivo `LICENSE`.
+- Añadir respaldo y restauración del banco completo en un archivo con indicador
+  de progreso (`.rp360bank` o `.zip`), además del respaldo JSON actual.
+- Ofrecer un modo offline o pedal virtual para crear y editar presets.
+- Crear un organizador de dos paneles para presets locales y posiciones del
+  dispositivo, con arrastrar y soltar, selección múltiple y operaciones en lote.
+- Ampliar la inicialización de posiciones con una plantilla limpia y en
+  bypass; la acción actual utiliza el preset de amplificador y gabinete
+  descrito anteriormente.
+- Guardar y reutilizar partes de tonos y cadenas de efectos sin reemplazar un
+  preset completo.
+- Añadir comparación A/B entre un preset editado y su estado original.
 
-## Nota legal
+### Más allá de Nexus y X-Edit
 
-"DigiTech", "Nexus" y "RP360" son marcas de Harman International, usadas solo
-con fines de identificación e interoperabilidad. Este proyecto **no está
-afiliado ni respaldado** por DigiTech/Harman.
+- Empaquetar versiones autónomas para Windows.
+- Mostrar diferencias legibles entre presets y ofrecer historial de versiones.
+- Añadir etiquetas y búsqueda de presets orientadas a la comunidad mediante
+  metadatos como género, artista, tipo de guitarra y etiquetas.
 
-Todo el material gráfico es **generado por código** (`generate_assets.py`) en
-estilo *cartoon plano*: no incluye fotos ni ilustraciones propietarias. Los
-nombres de efectos/amplificadores se han normalizado a descriptores genéricos
-(sin uso de marcas registradas).
+## Estructura del proyecto
+
+- `nexus/`: transporte serie, protocolo, API del dispositivo, modelos de preset
+  y base de datos de efectos.
+- `nexus/ui/`: el editor PyQt.
+- `nexus/data/` y `nexus/assets/`: presets incluidos y gráficos generados.
+- `packaging/`: empaquetado para Linux y configuración udev.
+- `docs/DESARROLLO.md`: notas de desarrollo.
+
+## Apoya el proyecto original
+
+Si aprecias el trabajo que hizo posible este fork, considera apoyar a IlicaJ:
+
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-IlicaJ-yellow)](https://www.buymeacoffee.com/lica)
+
+## Licencia y marcas
+
+DigiTux es software libre bajo la [licencia GPL-3.0](LICENSE). La aplicación
+utiliza gráficos generados en lugar de las fotografías originales del producto.
+
+DigiTech, Nexus y RP360 se usan para identificación e interoperabilidad. Este
+proyecto no está afiliado ni respaldado por DigiTech o Harman.
