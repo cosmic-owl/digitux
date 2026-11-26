@@ -60,15 +60,16 @@ class PresetContextMenuTests(unittest.TestCase):
 
         replacement = self.window.db.build_reset_preset("Preset 2")
         self.window.dev.get_user_preset.side_effect = [replacement]
-        self.window.dev.user_preset_names.return_value = ["First", "Preset 2", None]
-        self.window.dev.factory_preset_names.return_value = ["Factory"]
         with patch.object(QMessageBox, "question", return_value=QMessageBox.Yes) as confirm:
             self.open_menu(1, "Delete...")
         self.window.dev.write_user_preset.assert_called_once_with(1, replacement)
         self.assertIn('User 2 ("Second")', confirm.call_args.args[2])
         self.assertIn("Preset 2", confirm.call_args.args[2])
         self.assertIn("no quedará vacía", confirm.call_args.args[2])
-        self.assertEqual(self.window.user_names[1], "Preset 2")
+        self.assertEqual(self.window.user_names, ["First", "Preset 2", None])
+        self.assertEqual(self.window.list.item(1).text(), " 2. Preset 2")
+        self.window.dev.user_preset_names.assert_not_called()
+        self.window.dev.factory_preset_names.assert_not_called()
         self.assertIn("restablecido", self.window.status.currentMessage())
 
     def test_empty_slots_and_other_tabs_have_no_menu(self):
@@ -105,15 +106,15 @@ class PresetContextMenuTests(unittest.TestCase):
         self.assertIn("write failed", self.window.status.currentMessage())
         self.window.dev.user_preset_names.assert_not_called()
 
-    def test_delete_reports_refresh_error_after_command(self):
+    def test_delete_reports_list_update_error_after_command(self):
         replacement = self.window.db.build_reset_preset("Preset 2")
         self.window.dev.get_user_preset.side_effect = [replacement]
-        self.window.dev.user_preset_names.side_effect = RuntimeError("refresh failed")
-        with patch.object(QMessageBox, "question", return_value=QMessageBox.Yes):
+        with patch.object(QMessageBox, "question", return_value=QMessageBox.Yes), \
+             patch.object(self.window, "_filter", side_effect=RuntimeError("update failed")):
             self.open_menu(1, "Delete...")
         self.window.dev.write_user_preset.assert_called_once_with(1, replacement)
         self.assertIn("restablecido", self.window.status.currentMessage())
-        self.assertIn("refresh failed", self.window.status.currentMessage())
+        self.assertIn("update failed", self.window.status.currentMessage())
 
     def test_reset_name_uses_one_based_slot_index(self):
         for index in (0, 98):

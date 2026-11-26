@@ -1,13 +1,15 @@
 """Main window — faithful Nexus clone for Linux."""
 import json
 from pathlib import Path
+import logging
+import threading
 
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton,
-    QListWidget, QLineEdit, QTabBar, QSplitter, QMessageBox, QStatusBar, QMenu,
+    QListWidget, QLineEdit, QTabBar, QMessageBox, QStatusBar, QMenu,
 )
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QObject
-from PyQt5.QtGui import QColor, QPalette, QFont, QPixmap, QPainter, QLinearGradient
+from PyQt5.QtGui import QColor, QPalette, QPixmap, QPainter, QLinearGradient
 
 from ..device import Device
 from ..effects_db import EffectsDB
@@ -15,6 +17,9 @@ from .pedalboard_view import PedalboardView, reordered_slots
 from .amp_cab_block import AmpCabBlock
 from .control_panel import ControlPanel
 from ..runtime import img_path, data_path
+
+log = logging.getLogger(__name__)
+POLL_INTERVAL_MS = 5000
 
 
 class _TitleBar(QWidget):
@@ -24,7 +29,7 @@ class _TitleBar(QWidget):
         super().__init__()
         self.setFixedHeight(54)
 
-    def paintEvent(self, e):
+    def paintEvent(self, a0):
         p = QPainter(self)
         g = QLinearGradient(0, 0, 0, self.height())
         g.setColorAt(0, QColor(0x1e1e1e))
@@ -37,14 +42,130 @@ class _TitleBar(QWidget):
 
 
 class Worker(QObject):
-    notif = pyqtSignal(list)
+    notif = pyqtSignal(list, int)
+    snapshot = pyqtSignal(object, int)
+    failed = pyqtSignal(str)
+    disconnected = pyqtSignal(str)
 
     def __init__(self, device):
         super().__init__()
         self.dev = device
+        self._lock = threading.Lock()
+        self._revision = 0
+        self._structural_revision = 0
+        self._changes = {}
+        self._stopped = False
 
     def start(self):
-        self.dev.on_notification(lambda m: self.notif.emit(m))
+        self.dev.on_notification(self._notification)
+        self.dev.on_disconnect(self._disconnect)
+
+    def invalidate(self):
+        with self._lock:
+            self._revision += 1
+            self._structural_revision = self._revision
+            return self._revision
+
+    def record_change(self, path, value):
+        with self._lock:
+            self._revision += 1
+            self._changes[path] = (self._revision, value)
+            return self._revision
+
+    def is_current(self, revision):
+        with self._lock:
+            return not self._stopped and revision == self._revision
+
+    def stop(self):
+        with self._lock:
+            self._stopped = True
+            self._revision += 1
+
+    def _notification(self, msg):
+        with self._lock:
+            if self._stopped:
+                return
+            self._revision += 1
+            revision = self._revision
+            if (len(msg) >= 4 and msg[0] == "np" and isinstance(msg[2], str)
+                    and self._is_scalar_path(msg[2], msg[3])):
+                self._changes[msg[2]] = (revision, msg[3])
+            elif (len(msg) >= 4 and msg[0] == "np" and isinstance(msg[2], str)
+                  and not msg[2].startswith("preset") and msg[2] != "system/LAST PRES"):
+                pass
+            else:
+                self._structural_revision = revision
+        self.notif.emit(msg, revision)
+
+    @staticmethod
+    def _is_scalar_path(path, value):
+        if path == "preset/name":
+            return isinstance(value, str)
+        if path == "preset/PRS LEVL":
+            return isinstance(value, int)
+        parts = path.split("/")
+        return (len(parts) in (4, 5) and parts[:2] == ["preset", "fxc"]
+                and parts[2].isdigit() and isinstance(value, int)
+                and (len(parts) == 4 and parts[3] != "name"
+                     or len(parts) == 5 and parts[3] == "fx" and parts[4] != "name"))
+
+    def merge_snapshot(self, preset, revision):
+        with self._lock:
+            if self._stopped or self._structural_revision > revision:
+                return None
+            # Only properties changed since this read began need replaying.
+            changes = [(path, value) for path, (seq, value) in self._changes.items()
+                       if seq > revision]
+            watermark = self._revision
+            for path, value in changes:
+                if not self._merge_change(preset, path, value):
+                    return None
+            return watermark
+
+    @staticmethod
+    def _merge_change(preset, path, value):
+        if path == "preset/name":
+            preset.name = value
+            return True
+        if path == "preset/PRS LEVL":
+            preset.prs_levl = value
+            return True
+        parts = path.split("/")
+        slot = preset.slots.get(int(parts[2]))
+        if slot is None:
+            return False
+        name = parts[-1]
+        if len(parts) == 4 and name == "ENABLE":
+            slot.enable = bool(value)
+            return True
+        if ((len(parts) == 5) != slot._use_fx_subdict or name not in slot.params):
+            return False
+        slot.params[name] = value
+        return True
+
+    def _disconnect(self, exc):
+        self.stop()
+        self.disconnected.emit(str(exc))
+
+    def read_preset(self):
+        with self._lock:
+            revision = self._revision
+            self._changes.clear()
+        threading.Thread(target=self._read_preset, args=(revision,), daemon=True).start()
+
+    def _read_preset(self, revision):
+        with self._lock:
+            valid = not self._stopped and self._structural_revision <= revision
+        if not valid:
+            self.snapshot.emit(None, revision)
+            return
+        try:
+            preset = self.dev.get_active_preset()
+        except Exception as exc:
+            log.exception("Could not reconcile active preset")
+            self.failed.emit(str(exc))
+        else:
+            self.snapshot.emit(preset, revision)
 
 
 class MainWindow(QMainWindow):
@@ -54,6 +175,18 @@ class MainWindow(QMainWindow):
         self.resize(1360, 820)
         self.db = EffectsDB()
         self.dev = Device()
+        self._sync_busy = False
+        self._sync_requested = False
+        self._connected = False
+        self._session_open = False
+        self._snapshot_watermark = -1
+        self._poll_timer = QTimer(self)
+        self._poll_timer.setInterval(POLL_INTERVAL_MS)
+        self._poll_timer.timeout.connect(self._request_sync)
+        self._sync_timer = QTimer(self)
+        self._sync_timer.setSingleShot(True)
+        self._sync_timer.setInterval(100)
+        self._sync_timer.timeout.connect(self._request_sync)
         self._setup_ui()
         self._apply_theme()
         QTimer.singleShot(100, self._connect)
@@ -102,6 +235,10 @@ class MainWindow(QMainWindow):
         self.control_panel.stomp_assigned.connect(self._assign_stomp)
         self.control_panel.expression_assigned.connect(self._assign_expression)
         self.control_panel.lfo_assigned.connect(self._assign_lfo)
+        self.control_panel.wah_level.connect(
+            lambda value: self._set_wah_param("WAH LEVL", value))
+        self.control_panel.pedal.connect(
+            lambda value: self._set_wah_param("PEDAL", value))
         root.addWidget(self.control_panel)
 
         self.status = QStatusBar()
@@ -138,7 +275,7 @@ class MainWindow(QMainWindow):
         lvl_lbl = QLabel("Level")
         lvl_lbl.setStyleSheet("color:#bbb; font-size:12px;")
         lay.addWidget(lvl_lbl)
-        self.level_slider = QSlider(Qt.Horizontal)
+        self.level_slider = QSlider(Qt.Orientation.Horizontal)
         self.level_slider.setRange(0, 99)
         self.level_slider.setFixedWidth(120)
         self.level_slider.setStyleSheet(
@@ -203,7 +340,7 @@ class MainWindow(QMainWindow):
             "QListWidget::item:hover{background:#333;}"
         )
         self.list.itemDoubleClicked.connect(self._on_select)
-        self.list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.list.customContextMenuRequested.connect(self._preset_context_menu)
         lay.addWidget(self.list, 1)
 
@@ -213,6 +350,8 @@ class MainWindow(QMainWindow):
     def _apply_theme(self):
         from PyQt5.QtWidgets import QApplication
         app = QApplication.instance()
+        if not isinstance(app, QApplication):
+            raise RuntimeError("DigiTux requires a QApplication")
         pal = QPalette()
         pal.setColor(QPalette.Window, QColor(0x181818))
         pal.setColor(QPalette.WindowText, QColor(0xdddddd))
@@ -229,12 +368,28 @@ class MainWindow(QMainWindow):
     def _connect(self):
         try:
             self.dev.connect()
+            self._session_open = True
             self.worker = Worker(self.dev)
             self.worker.notif.connect(self._on_notif)
+            self.worker.snapshot.connect(self._on_snapshot)
+            self.worker.failed.connect(self._on_sync_error)
+            self.worker.disconnected.connect(self._on_disconnect)
             self.worker.start()
+            self._connected = True
             self._refresh_names()
             self._reload()
+            self._poll_timer.start()
         except Exception as e:
+            self._connected = False
+            self._poll_timer.stop()
+            if hasattr(self, "worker"):
+                self.worker.stop()
+            if self._session_open:
+                try:
+                    self.dev.disconnect()
+                except Exception:
+                    log.exception("Error closing failed session")
+                self._session_open = False
             self.status.showMessage(f"Offline: {e}", 6000)
             self._load_library()
 
@@ -284,29 +439,130 @@ class MainWindow(QMainWindow):
 
     def _reload(self):
         try:
+            if hasattr(self, "worker"):
+                self.worker.invalidate()
             p = self.dev.get_active_preset()
-            self.preset = p
-            self.preset_name.setText(p.name)
-            self.level_slider.blockSignals(True)
-            self.level_slider.setValue(p.prs_levl)
-            self.level_value.setText(str(p.prs_levl))
-            self.level_slider.blockSignals(False)
-            # amp
-            amp_slot = None
-            for s in p.slots.values():
-                if s.category == "amp":
-                    amp_slot = s
-                    break
-            self.amp_block.set_amp_slot(amp_slot)
-            self.pedalboard.rebuild(p.slots, self.db)
-            self.control_panel.set_effect_slots(p.slots)
-            self.status.showMessage(f"Preset: {p.name}")
+            self._display_preset(p)
         except Exception as e:
             self.status.showMessage(f"Error reload: {e}", 5000)
+
+    def _display_preset(self, p):
+        self.preset = p
+        self.preset_name.setText(p.name)
+        self._display_level(p.prs_levl)
+        amp_slot = next((s for s in p.slots.values() if s.category == "amp"), None)
+        self.amp_block.set_amp_slot(amp_slot)
+        self.pedalboard.rebuild(p.slots, self.db)
+        self.control_panel.set_effect_slots(p.slots)
+        wah = next((s for s in p.slots.values() if s.category == "wah"), None)
+        if wah:
+            for name in ("WAH LEVL", "PEDAL"):
+                if name in wah.params:
+                    self._display_wah_param(name, wah.params[name])
+        self.status.showMessage(f"Preset: {p.name}")
+
+    def _display_level(self, value):
+        blocked = self.level_slider.blockSignals(True)
+        self.level_slider.setValue(value)
+        self.level_slider.blockSignals(blocked)
+        self.level_value.setText(str(value))
+
+    def _apply_slot_value(self, slot, name, value):
+        s = self.preset.slots[slot]
+        if name == "ENABLE":
+            s.enable = None if value is None else bool(value)
+            if s.category == "amp":
+                self.amp_block.amp_view.update()
+            elif slot in self.pedalboard.pedals:
+                self.pedalboard.pedals[slot].update()
+            return
+        s.params[name] = value
+        if s.category == "wah" and name in ("WAH LEVL", "PEDAL"):
+            self._display_wah_param(name, value)
+        if s.category == "amp":
+            self.amp_block.update_param(name, value)
+        else:
+            pedal = self.pedalboard.pedals.get(slot)
+            if pedal and name in pedal._knobs:
+                pedal._knobs[name].value = int(value)
+
+    def _display_wah_param(self, name, value):
+        widget = (self.control_panel.wah_level_spin if name == "WAH LEVL"
+                  else self.control_panel.pedal_spin)
+        blocked = widget.blockSignals(True)
+        widget.setValue(int(value))
+        widget.blockSignals(blocked)
+
+    def _set_wah_param(self, name, value):
+        preset = getattr(self, "preset", None)
+        if preset is not None:
+            wah = next((s for s in preset.slots.values() if s.category == "wah"), None)
+            if wah is not None:
+                self._set_param(wah.slot, name, value)
+
+    def _apply_snapshot(self, p):
+        old = getattr(self, "preset", None)
+        if (old is None or old.chain_order != p.chain_order
+                or old.ctrls != p.ctrls or old.slots.keys() != p.slots.keys()
+                or any(old.slots[i].model != s.model
+                       or old.slots[i]._use_fx_subdict != s._use_fx_subdict
+                       or old.slots[i].params.keys() != s.params.keys()
+                       for i, s in p.slots.items())):
+            self._display_preset(p)
+            return
+        self.preset_name.setText(p.name)
+        old.name = p.name
+        old.factmodify = p.factmodify
+        old.prs_levl = p.prs_levl
+        self._display_level(p.prs_levl)
+        for i, slot in p.slots.items():
+            if old.slots[i].enable != slot.enable:
+                self._apply_slot_value(i, "ENABLE", slot.enable)
+            for name, value in slot.params.items():
+                if old.slots[i].params[name] != value:
+                    self._apply_slot_value(i, name, value)
+
+    def _request_sync(self):
+        if not self._connected:
+            return
+        if self._sync_busy:
+            self._sync_requested = True
+            return
+        self._sync_busy = True
+        self._sync_requested = False
+        self.worker.read_preset()
+
+    def _on_snapshot(self, preset, revision):
+        self._sync_busy = False
+        if not self._connected:
+            return
+        watermark = None if preset is None else self.worker.merge_snapshot(preset, revision)
+        if watermark is not None:
+            self._apply_snapshot(preset)
+            self._snapshot_watermark = watermark
+        else:
+            self._sync_requested = True
+        if self._sync_requested:
+            self._sync_timer.start()
+
+    def _on_sync_error(self, error):
+        self._sync_busy = False
+        self._sync_requested = False
+        if self._connected:
+            self.status.showMessage(f"Error sync: {error}", 5000)
+
+    def _on_disconnect(self, error):
+        self._connected = False
+        self._poll_timer.stop()
+        self._sync_timer.stop()
+        self.status.showMessage(f"Desconectado: {error}")
 
     def _filter(self, text):
         for i in range(self.list.count()):
             item = self.list.item(i)
+            if item is None:
+                log.warning("Missing preset list item at index %d", i)
+                continue
             item.setHidden(text.lower() not in item.text().lower())
 
     def _preset_context_menu(self, pos):
@@ -322,19 +578,28 @@ class MainWindow(QMainWindow):
         menu = QMenu(self)
         menu.addAction("Copy", lambda: self._copy_user_preset(index))
         menu.addAction("Delete...", lambda: self._delete_user_preset_at(index))
-        menu.exec_(self.list.viewport().mapToGlobal(pos))
+        viewport = self.list.viewport()
+        if viewport is None:
+            raise RuntimeError("Preset list viewport is unavailable")
+        menu.exec_(viewport.mapToGlobal(pos))
 
     # ------------------------------------------------------------- actions
     def _build_menubar(self):
         mb = self.menuBar()
+        if mb is None:
+            raise RuntimeError("Main window menu bar is unavailable")
         mb.setStyleSheet("QMenuBar{background:#121212;color:#ddd;} QMenuBar::item:selected{background:#2a2a2a;}")
         f = mb.addMenu("Archivo")
+        if f is None:
+            raise RuntimeError("Could not create file menu")
         f.addAction("Backup...", self._backup)
         f.addAction("Restore...", self._restore)
         f.addSeparator()
         f.addAction("Importar preset...", self._import_preset)
         f.addAction("Exportar preset...", self._export_preset)
         p = mb.addMenu("Preset")
+        if p is None:
+            raise RuntimeError("Could not create preset menu")
         p.addAction("Store New...", self._store_new)
         p.addAction("Quick Store", self._quick_store)
         p.addAction("Delete User Preset...", self._delete_user_preset)
@@ -584,30 +849,50 @@ class MainWindow(QMainWindow):
             s = self.preset.slots.get(slot)
             if s is not None and not getattr(s, "_use_fx_subdict", True):
                 flat = True
+            path = f"preset/fxc/{slot}/{param}" if flat else f"preset/fxc/{slot}/fx/{param}"
+            if hasattr(self, "worker"):
+                self.worker.record_change(path, value)
             self.dev.set_param(slot, param, value, flat=flat)
+            if hasattr(self, "worker"):
+                self.worker.record_change(path, value)
+            if s is not None:
+                self._apply_slot_value(slot, param, value)
         except Exception as e:
+            if hasattr(self, "worker"):
+                self.worker.invalidate()
             self.status.showMessage(f"Error: {e}", 3000)
+            self._sync_timer.start()
 
     def _set_enable(self, slot, enabled):
         try:
+            path = f"preset/fxc/{slot}/ENABLE"
+            self.worker.record_change(path, int(enabled))
             self.dev.set_enable(slot, enabled)
-            self._reload()
+            self.worker.record_change(path, int(enabled))
+            self._apply_slot_value(slot, "ENABLE", enabled)
         except Exception as e:
+            self.worker.invalidate()
             self.status.showMessage(f"Error: {e}", 3000)
+            self._sync_timer.start()
 
     def _set_amp_bypass(self, slot, bypass):
-        try:
-            self.dev.set_enable(slot, not bypass)
-            self._reload()
-        except Exception as e:
-            self.status.showMessage(f"Error bypass: {e}", 3000)
+        self._set_enable(slot, not bypass)
 
     def _set_preset_level(self, value):
         self.level_value.setText(str(value))
         try:
+            if hasattr(self, "worker"):
+                self.worker.record_change("preset/PRS LEVL", value)
             self.dev.set_preset_level(value)
+            if hasattr(self, "worker"):
+                self.worker.record_change("preset/PRS LEVL", value)
+            if hasattr(self, "preset"):
+                self.preset.prs_levl = value
         except Exception as e:
+            if hasattr(self, "worker"):
+                self.worker.invalidate()
             self.status.showMessage(f"Error level: {e}", 3000)
+            self._sync_timer.start()
 
     def _set_cabinet(self, slot, cab_idx):
         try:
@@ -672,16 +957,59 @@ class MainWindow(QMainWindow):
         except Exception as e:
             self.status.showMessage(f"Error: {e}", 5000)
 
-    def _on_notif(self, msg):
-        if msg and msg[0] == "np" and len(msg) >= 4:
-            path, val = msg[2], msg[3]
-            self.status.showMessage(f"Live: {path} = {val}", 1500)
-            if "/fxc/" in path:
-                self._reload()
+    def _on_notif(self, msg, revision=None):
+        if not self._connected or not msg:
+            return
+        if revision is not None and revision <= self._snapshot_watermark:
+            return
+        if msg[0] != "np":
+            if msg[0] in ("cm", "ndc", "nsc", "nac"):
+                self._sync_timer.start()
+            return
+        if len(msg) < 4 or not isinstance(msg[2], str):
+            log.warning("Malformed property notification: %r", msg)
+            self._sync_timer.start()
+            return
+        path, value = msg[2], msg[3]
+        if not hasattr(self, "preset"):
+            self._sync_timer.start()
+            return
+        if path == "preset/name" and isinstance(value, str):
+            self.preset.name = value
+            self.preset_name.setText(value)
+        elif path == "preset/PRS LEVL" and isinstance(value, int):
+            self.preset.prs_levl = value
+            self._display_level(value)
+        elif path.startswith("preset/fxc/"):
+            parts = path.split("/")
+            if len(parts) in (4, 5) and parts[2].isdigit():
+                slot = self.preset.slots.get(int(parts[2]))
+                if slot is not None:
+                    name = parts[-1]
+                    is_param = (len(parts) == 5 and parts[3] == "fx"
+                                and slot._use_fx_subdict
+                                or len(parts) == 4 and not slot._use_fx_subdict)
+                    if (len(parts) == 4 and name == "ENABLE"
+                            and isinstance(value, (int, bool))):
+                        self._apply_slot_value(slot.slot, name, value)
+                        return
+                    if is_param and name in slot.params and isinstance(value, int):
+                        self._apply_slot_value(slot.slot, name, value)
+                        return
+            self._sync_timer.start()
+        elif path == "preset" or path.startswith("preset/") or path == "system/LAST PRES":
+            self._sync_timer.start()
 
-    def closeEvent(self, e):
+    def closeEvent(self, a0):
+        self._connected = False
+        self._poll_timer.stop()
+        self._sync_timer.stop()
+        if hasattr(self, "worker"):
+            self.worker.stop()
         try:
-            self.dev.disconnect()
+            if self._session_open:
+                self.dev.disconnect()
         except Exception:
-            pass
-        e.accept()
+            log.exception("Error disconnecting device")
+        if a0 is not None:
+            a0.accept()

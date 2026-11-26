@@ -248,6 +248,18 @@ class AmpCabBlock(QWidget):
                 self.cab_combo.setCurrentIndex(cab_index)
                 self.cab_combo.blockSignals(False)
 
+    def update_param(self, name, value):
+        for knob in self.amp_view._knobs:
+            if knob.name == name:
+                knob.value = int(value)
+        if name == "CABINET":
+            cab = self.db.cabinet_at(int(value))
+            if cab is not None:
+                self._set_cab_image(cab)
+                blocked = self.cab_combo.blockSignals(True)
+                self.cab_combo.setCurrentIndex(int(value))
+                self.cab_combo.blockSignals(blocked)
+
     def _set_cab_image(self, cab):
         self.cab_lbl.setText("")
         fn = cab.get("image")
