@@ -269,7 +269,7 @@ class MainWindow(QMainWindow):
         lay.addWidget(sep)
 
         self.preset_name = QLabel("—")
-        self.preset_name.setStyleSheet("color:#fff; font-size:15px; font-weight:bold;")
+        self.preset_name.setStyleSheet("color:#fff; font-size:24px; font-weight:bold;")
         lay.addWidget(self.preset_name)
         lay.addStretch()
 
