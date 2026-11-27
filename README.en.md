@@ -39,8 +39,10 @@ project and making this fork possible.
   edit buffer. Store the preset to keep those parameter changes.
   The BPM and subdivision choices are not saved or read from the pedal.
   Delay models without a TIME parameter and values outside the model's range
-  cannot be synchronized. LFO speed conversion is approximate and has not
-  been verified on hardware; the pedal's own TAP DIV setting is unchanged.
+  cannot be synchronized. LFO speed conversion is approximate. Encoded values
+  matched the RP360XP's displayed speeds at 0.05, 0.79, 1.00, 1.10, 2.50,
+  and 10.00 Hz; the actual modulation rate has not been measured. The pedal's
+  own TAP DIV setting is unchanged.
 - Copy a saved User preset to the internal clipboard. The paste action is not
   implemented yet.
 - Reset a User slot after confirmation. This **overwrites** it with a named

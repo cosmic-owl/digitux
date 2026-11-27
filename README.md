@@ -40,8 +40,10 @@ proyecto y hacer posible este fork.
   el preset de edición. Guarda el preset para conservar esos parámetros.
   El BPM y las subdivisiones no se guardan ni se leen del pedal. Los modelos de
   delay sin parámetro TIME y los valores fuera de rango no se sincronizan. La
-  conversión de velocidad LFO es aproximada y no se ha verificado en hardware;
-  el ajuste TAP DIV del pedal no se modifica.
+  conversión de velocidad LFO es aproximada. Los valores codificados coincidieron
+  con las velocidades mostradas por el RP360XP a 0.05, 0.79, 1.00, 1.10, 2.50
+  y 10.00 Hz; no se ha medido la velocidad real de modulación. El ajuste TAP DIV
+  del pedal no se modifica.
 - Copiar un preset User guardado al portapapeles interno. La acción de pegar
   aún no está implementada.
 - Restablecer un preset de usuario con confirmación previa. Esto la **sobrescribe**
