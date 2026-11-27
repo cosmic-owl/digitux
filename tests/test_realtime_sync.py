@@ -84,6 +84,33 @@ class SyncUITest(unittest.TestCase):
         self.assertEqual(panel.pages.currentIndex(), 1)
         self.assertTrue(panel.nav_buttons.button(1).isChecked())
 
+    def test_eq_display_is_below_controls_and_visible_on_every_page(self):
+        panel = self.window.control_panel
+        self.window.show()
+        self.app.processEvents()
+        display = panel.eq_display
+        self.assertIsNotNone(display.parentWidget())
+        self.assertEqual(panel.eq_heading.text(), "EQ Pedal")
+        self.assertTrue(panel.eq_heading.isVisible())
+        self.assertGreater(display.width(), 200)
+        self.assertGreater(display.height(), 150)
+        self.assertGreater(display.mapTo(panel, QPoint(0, 0)).y(),
+                           panel.eq_heading.mapTo(panel, QPoint(0, panel.eq_heading.height())).y())
+        self.assertGreater(display.mapTo(panel, QPoint(0, 0)).y(),
+                           panel.navigation.mapTo(panel, QPoint(0, panel.navigation.height())).y())
+        self.assertLessEqual(display.mapTo(panel, QPoint(0, display.height())).y(),
+                             panel.height())
+        for index in range(panel.pages.count()):
+            panel.nav_buttons.button(index).click()
+            self.app.processEvents()
+            self.assertTrue(display.isVisible())
+            self.assertGreaterEqual(panel.pages.height(),
+                                    panel.pages.currentWidget().minimumSizeHint().height())
+        height = display.height()
+        self.window.resize(self.window.width(), self.window.height() + 200)
+        self.app.processEvents()
+        self.assertGreater(display.height(), height)
+
     def test_narrow_panel_fits_labels_and_stacks_controls(self):
         panel = self.window.control_panel
         panel.set_effect_slots({9: FxSlot(9, "mod.DYNOCOMP", {"LOOSETIGHT": 0})})
@@ -148,7 +175,7 @@ class SyncUITest(unittest.TestCase):
 
     def test_eq_display_tracks_edits_notifications_snapshots_and_preset_changes(self):
         w = self.window
-        display = w.amp_block.amp_view.eq_display
+        display = w.control_panel.eq_display
         self.assertIs(display.slot, w.preset.slots[5])
         w._set_param(5, "MID LEVL", 15)
         self.assertEqual(display.slot.params["MID LEVL"], 15)
@@ -174,7 +201,7 @@ class SyncUITest(unittest.TestCase):
         pedal = w.pedalboard.pedals[5]
         switch = pedal._switches["HIGH BW"]
         self.assertEqual(switch.value, 1)
-        with patch.object(w.amp_block.amp_view.eq_display, "update") as redraw:
+        with patch.object(w.control_panel.eq_display, "update") as redraw:
             QTest.mouseClick(switch, Qt.LeftButton, pos=QPoint(30, 28))
             redraw.assert_called_once()
         self.device.set_param.assert_called_once_with(5, "HIGH BW", 2, flat=True)
@@ -193,7 +220,7 @@ class SyncUITest(unittest.TestCase):
         w._apply_snapshot(updated)
         self.assertEqual(switch.value, 2)
         self.assertEqual(pedal._knobs["HIGHFREQ"].value, 14)
-        self.assertIs(w.amp_block.amp_view.eq_display.slot, w.preset.slots[5])
+        self.assertIs(w.control_panel.eq_display.slot, w.preset.slots[5])
         self.device.set_param.assert_not_called()
 
     def test_structural_notifications_coalesce_and_stale_snapshots_are_rejected(self):

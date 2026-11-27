@@ -14,7 +14,7 @@ from nexus.effects_db import EffectsDB, visible_pedal_params
 from nexus.model import FxSlot
 from nexus.runtime import img_path
 from nexus.ui.amp_cab_block import AMP_DISP_W, AmpView
-from nexus.ui.eq_display import eq_bands, eq_response
+from nexus.ui.eq_display import EqDisplay, eq_bands, eq_response
 from nexus.ui.knob import Knob
 from nexus.ui.pedal_widget import DISP_H, DISP_W, EQ_DISP_W, SRC_H, SRC_W, PedalWidget
 
@@ -230,28 +230,13 @@ class KnobDrawingTest(unittest.TestCase):
         del slot.params["HIGHFREQ"]
         self.assertIsNone(eq_bands(slot))
 
-    def test_eq_display_fits_and_does_not_open_amp_picker(self):
-        view = AmpView(EffectsDB())
-        view.set_slot(FxSlot.from_json(3, EffectsDB().build_slot_data("DIGBRGHT")))
-        eq = view.eq_display
-        self.assertLess(view._knobs[-1].geometry().right(), eq.geometry().left())
-        self.assertLess(eq.geometry().right(), view._switch_rect().left())
-        changes = []
-        view.change_requested.connect(changes.append)
-        view.show()
-        self.app.processEvents()
-        QTest.mouseClick(eq, Qt.LeftButton)
-        self.assertEqual(changes, [])
-        view.close()
-
     def test_eq_display_renders_changes_and_bypass(self):
         db = EffectsDB()
         slot = FxSlot.from_json(4, db.build_slot_data("EQ"))
         slot.enable = True
-        view = AmpView(db)
-        display = view.eq_display
+        display = EqDisplay()
         display.set_slot(slot)
-        view.show()
+        display.show()
         self.app.processEvents()
         flat = display.grab().toImage()
         slot.params["LOW LEVL"] = 20
@@ -264,7 +249,89 @@ class KnobDrawingTest(unittest.TestCase):
         self.assertNotEqual(changed, bypassed)
         display.set_slot(None)
         self.assertNotEqual(bypassed, display.grab().toImage())
-        view.close()
+        display.close()
+
+    def test_eq_curve_expands_with_display(self):
+        slot = FxSlot.from_json(4, EffectsDB().build_slot_data("EQ"))
+        slot.enable = True
+        slot.params["LOW LEVL"] = 24
+        slot.params["HIGHLEVL"] = 0
+        display = EqDisplay()
+        display.set_slot(slot)
+        display.show()
+
+        def curve_bounds():
+            image = display.grab().toImage()
+
+            def is_curve(x, y):
+                color = image.pixelColor(x, y)
+                return color.red() > 200 and color.green() > 100 and color.blue() < 100
+
+            points = [(x, y) for x in range(image.width()) for y in range(image.height())
+                      if is_curve(x, y)]
+            self.assertTrue(points)
+            return (min(x for x, _ in points), max(x for x, _ in points),
+                    min(y for _, y in points), max(y for _, y in points))
+
+        small = curve_bounds()
+        display.resize(220, 240)
+        large = curve_bounds()
+        self.assertGreater(large[1] - large[0], small[1] - small[0] + 45)
+        self.assertGreater(large[3] - large[2], small[3] - small[2] + 30)
+        display.close()
+
+    def test_eq_curve_does_not_fill_over_grid(self):
+        slot = FxSlot.from_json(4, EffectsDB().build_slot_data("EQ"))
+        slot.enable = True
+        slot.params.update({"LOW LEVL": 24, "MID LEVL": 24, "HIGHLEVL": 0})
+        display = EqDisplay()
+        display.resize(220, 240)
+        display.set_slot(slot)
+        display.show()
+        image = display.grab().toImage()
+        self.assertEqual(image.pixelColor(136, 100), image.pixelColor(136, 50))
+        self.assertEqual(image.pixelColor(150, 121), image.pixelColor(150, 42))
+        display.close()
+
+    def test_eq_axis_labels_match_frequency_and_gain_scales(self):
+        slot = FxSlot.from_json(4, EffectsDB().build_slot_data("EQ"))
+        slot.enable = True
+        display = EqDisplay()
+        display.resize(220, 240)
+        display.set_slot(slot)
+
+        def drawing():
+            with patch("nexus.ui.eq_display.QPainter") as painter:
+                display.paintEvent(None)
+            return painter.return_value
+
+        flat = drawing()
+        labels = {call.args[2]: call.args[0] for call in flat.drawText.call_args_list}
+        self.assertTrue({"+12", "0", "-12", "dB", "100", "1k", "8k Hz"} <= labels.keys())
+        left, right = 38, display.width() - 12
+        for hz, label in ((100, "100"), (1000, "1k"), (8000, "8k Hz")):
+            x = round(left + (right - left) * math.log(hz / 60) / math.log(8000 / 60))
+            self.assertIn((x, 42, x, display.height() - 40),
+                          [call.args for call in flat.drawLine.call_args_list])
+            self.assertLessEqual(abs(labels[label].center().x() - x), 15)
+
+        slot.params.update({"LOW LEVL": 24, "LOW FREQ": 37,
+                            "MID LEVL": 24, "MID FREQ": 0})
+        boosted = drawing()
+        bands = eq_bands(slot)
+        gains = [eq_response(60 * (8000 / 60) ** ((x - left) / (right - left)), bands)
+                 for x in range(left, right + 1)]
+        scale = max(12, math.ceil(max(abs(gain) for gain in gains)))
+        self.assertGreater(scale, 12)
+        labels = [call.args[2] for call in boosted.drawText.call_args_list]
+        self.assertIn(f"+{scale}", labels)
+        self.assertIn(f"-{scale}", labels)
+        path = boosted.drawPath.call_args.args[0]
+        x = (left + right) // 2
+        expected_y = (42 + display.height() - 40) / 2 - gains[x - left] * (
+            display.height() - 40 - 42) / (2 * scale)
+        self.assertAlmostEqual(path.elementAt(x - left).y, expected_y)
+        display.close()
 
     def test_eq_knobs_use_encoded_parameter_ranges(self):
         db = EffectsDB()

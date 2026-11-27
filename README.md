@@ -28,11 +28,12 @@ proyecto y hacer posible este fork.
 - Explorar los presets User, Factory y Library incluidos; importar y exportar
   presets; y respaldar o restaurar presets de usuario en JSON.
 - Configurar asignaciones de stomp, expresión y LFO.
-- Ver una curva ilustrativa del ecualizador de tres bandas en el amplificador.
+- Ver una curva ilustrativa del ecualizador de tres bandas en el panel Pedal EQ
+  de la derecha.
   Las frecuencias entre los valores comprobados y las formas de los filtros son
   aproximadas, no una medición; la gráfica no incluye el amplificador, gabinete
-  ni otros efectos. La escala vertical se ajusta a la curva. Se indica si el EQ
-  está en bypass o ausente.
+  ni otros efectos. Incluye marcas de frecuencia y una escala en dB que se
+  ajusta a la curva. Se indica si el EQ está en bypass o ausente.
 - En la pestaña Tempo se puede marcar o introducir un BPM de sesión y aplicar
   subdivisiones al tiempo del delay y al LFO asignado. Ambos destinos comienzan
   en Off; cambiar el tempo o una subdivisión actualiza los destinos activos en

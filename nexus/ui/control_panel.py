@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import (
     QStylePainter,
 )
 from PyQt5.QtCore import QRect, QSize, pyqtSignal
+from .eq_display import EqDisplay
 from .tempo_panel import TempoPanel
 from .i18n import translate
 
@@ -43,9 +44,13 @@ class ControlPanel(QWidget):
     def __init__(self, db, parent=None):
         super().__init__(parent)
         self.db = db
-        layout = QHBoxLayout(self)
+        layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
+        controls = QWidget()
+        controls_layout = QHBoxLayout(controls)
+        controls_layout.setContentsMargins(0, 0, 0, 0)
+        controls_layout.setSpacing(0)
         self.navigation = QWidget()
         self.navigation.setFixedWidth(40)
         self.navigation.setStyleSheet(
@@ -74,8 +79,27 @@ class ControlPanel(QWidget):
         content_layout.addWidget(self.heading)
         self.pages = QStackedWidget()
         content_layout.addWidget(self.pages, 1)
-        layout.addWidget(content, 1)
-        layout.addWidget(self.navigation)
+        controls_layout.addWidget(content, 1)
+        controls_layout.addWidget(self.navigation)
+        layout.addWidget(controls, 1)
+        eq_area = QWidget()
+        eq_area.setStyleSheet("background:#181818;")
+        eq_layout = QVBoxLayout(eq_area)
+        eq_layout.setContentsMargins(0, 0, 0, 0)
+        eq_layout.setSpacing(0)
+        self.eq_heading = QLabel(translate("EQ Pedal"))
+        self.eq_heading.setStyleSheet(
+            "color:#ffb000;font-weight:bold;padding:10px 9px;"
+            "border-top:1px solid #333;border-bottom:1px solid #333;"
+        )
+        eq_layout.addWidget(self.eq_heading)
+        graph_layout = QVBoxLayout()
+        graph_layout.setContentsMargins(9, 9, 9, 9)
+        self.eq_display = EqDisplay()
+        self.eq_display.setAccessibleName(translate("EQ Pedal"))
+        graph_layout.addWidget(self.eq_display)
+        eq_layout.addLayout(graph_layout, 1)
+        layout.addWidget(eq_area, 1)
         self._build_stomp()
         self._build_expression()
         self._build_lfo()

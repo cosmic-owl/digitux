@@ -38,14 +38,14 @@ class LocalizationTests(unittest.TestCase):
 
     def test_supported_system_languages(self):
         examples = (
-            (QLocale.Spanish, "Asignar al pedal"),
-            (QLocale.English, "Assign to a pedal"),
-            (QLocale.French, "Assigner à une pédale"),
-            (QLocale.German, "Einem Pedal zuweisen"),
-            (QLocale.Italian, "Assegna a un pedale"),
-            (QLocale.Japanese, "ペダルに割り当て"),
+            (QLocale.Spanish, "Asignar al pedal", "Pedal EQ"),
+            (QLocale.English, "Assign to a pedal", "EQ Pedal"),
+            (QLocale.French, "Assigner à une pédale", "Pédale EQ"),
+            (QLocale.German, "Einem Pedal zuweisen", "EQ-Pedal"),
+            (QLocale.Italian, "Assegna a un pedale", "Pedale EQ"),
+            (QLocale.Japanese, "ペダルに割り当て", "EQペダル"),
         )
-        for language, expected in examples:
+        for language, expected, eq_title in examples:
             with self.subTest(language=language), patch(
                 "nexus.ui.i18n.QLocale.system", return_value=QLocale(language)
             ):
@@ -54,6 +54,7 @@ class LocalizationTests(unittest.TestCase):
                 controls = ControlPanel(None)
                 labels = [label.text() for label in controls.findChildren(QLabel)]
                 self.assertIn(expected, labels)
+                self.assertEqual(controls.eq_heading.text(), eq_title)
                 tempo = TempoPanel()
                 self.assertEqual(tempo.tap.text(), translate("Tap"))
                 self.assertEqual(tempo.delay.itemText(0), translate("Off"))

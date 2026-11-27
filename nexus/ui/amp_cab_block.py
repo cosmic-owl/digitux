@@ -5,7 +5,6 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, pyqtSignal, QRect
 from PyQt5.QtGui import QPixmap, QPainter, QColor, QFont
 
-from .eq_display import EqDisplay
 from .knob import Knob
 from ..runtime import img_path
 from .i18n import translate
@@ -38,8 +37,6 @@ class AmpView(QWidget):
         self.setFixedSize(AMP_DISP_W, AMP_DISP_H)
         self.setToolTip(translate("Clic en la placa para cambiar amplificador"))
         self._load_bits()
-        self.eq_display = EqDisplay(self)
-        self.eq_display.move(490, 75)
 
     def _load_bits(self):
         base = img_path("amps")

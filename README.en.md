@@ -28,11 +28,11 @@ project and making this fork possible.
 - Browse User, Factory, and bundled Library presets; import and export presets;
   and back up or restore user presets as JSON.
 - Configure stomp, expression, and LFO assignments.
-- See an illustrative three-band EQ curve on the amplifier. Frequency mappings
-  between checked pedal values and filter shapes are approximate, not a
-  measured response; the display excludes the amp, cabinet and other effects.
-  The vertical scale adjusts to the curve. A bypassed or absent EQ is
-  indicated instead of a curve.
+- See an illustrative three-band EQ curve in the right-hand EQ Pedal panel,
+  with frequency markers and an automatically adjusted dB scale. Frequency
+  mappings between checked pedal values and filter shapes are approximate,
+  not a measured response; the display excludes the amp, cabinet and other
+  effects. A bypassed or absent EQ is indicated instead of a curve.
 - Use the Tempo tab to tap or enter a session BPM and optionally apply note
   subdivisions to delay time and an assigned LFO. Both targets default to Off;
   changing the tempo or a subdivision updates enabled targets in the current
